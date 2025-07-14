@@ -118,10 +118,29 @@ const getSales = async (req, res) => {
 };
 
 
+const editSale = async (req, res) => {
+  try {
+    const saleId = req.params.id;
+    const updates = req.body;
+
+    const updatedSale = await Sale.findByIdAndUpdate(saleId, updates, { new: true });
+
+    if (!updatedSale) {
+      return res.status(404).json({ message: 'Sale not found' });
+    }
+
+    res.status(200).json(updatedSale);
+  } catch (err) {
+    console.error('Error updating sale:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   createSale,
   updateApplicationStatus,
   updateLeaseStatus,
   updateCreditScore,
-  getSales
+  getSales,
+  editSale
 };

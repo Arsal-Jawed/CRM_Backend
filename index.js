@@ -17,6 +17,8 @@ const remarkRoutes = require('./Routes/RemarkRouter.js');
 const messageRoutes = require('./Routes/MessageRouter.js');
 const saleRoutes = require('./Routes/SaleRouter.js');
 const ticketRoutes = require('./Routes/TicketRouter.js');
+const equipmentRoutes = require('./Routes/EquipmentRouter.js');
+const dataRoutes = require('./Routes/DataRouter.js');
 
 const {createNotificationTable} = require('./SQL/Notification.js');
 const {createScheduleTable} = require('./SQL/Schedules.js');
@@ -42,6 +44,8 @@ app.use('/remarks',remarkRoutes);
 app.use('/messages',messageRoutes);
 app.use('/sales',saleRoutes);
 app.use('/tickets',ticketRoutes);
+app.use('/equipments',equipmentRoutes);
+app.use('/data',dataRoutes);
   
 connectDB();
 

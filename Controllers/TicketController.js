@@ -4,10 +4,22 @@ const Lead = require('../Models/LeadModel');
 
 const createTicket = async (req, res) => {
   try {
-    const { leadId, generatorType, generator, details } = req.body;
-    console.log('id: '+leadId+' type: '+generatorType+' generator: '+generator+' details: '+details);
-    const ticket = new Ticket({ leadId, generatorType, generator, details });
+    const { leadId, generatorType, generator, details, comment } = req.body;
+
+    const now = new Date();
+
+    const ticket = new Ticket({
+      leadId,
+      generatorType,
+      generator,
+      details,
+      comment,
+      date: now,
+      lastEdit: now
+    });
+
     await ticket.save();
+
     res.status(201).json(ticket);
   } catch (err) {
     res.status(500).json({ error: 'Failed to create ticket' });
@@ -17,12 +29,22 @@ const createTicket = async (req, res) => {
 const editDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const { details } = req.body;
-    const updated = await Ticket.findByIdAndUpdate(id, { details }, { new: true });
+    const { comment } = req.body;
+
+    const updated = await Ticket.findByIdAndUpdate(
+      id,
+      {
+        comment,
+        lastEdit: new Date()
+      },
+      { new: true }
+    );
+
     if (!updated) return res.status(404).json({ error: 'Ticket not found' });
+
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to edit details' });
+    res.status(500).json({ error: 'Failed to update comment' });
   }
 };
 

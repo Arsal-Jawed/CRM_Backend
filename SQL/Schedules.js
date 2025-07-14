@@ -8,14 +8,15 @@ const createScheduleTable = () => {
       details TEXT NOT NULL,
       set_date DATE DEFAULT CURRENT_DATE,
       visibility ENUM('public', 'private') DEFAULT 'private',
-      schedule_date DATE NOT NULL
+      schedule_date DATE NOT NULL,
+      seen ENUM('pending', 'marked', 'missed') DEFAULT 'pending'
     )
   `;
 
   db.query(query, (err) => {
     if (err) throw err;
-    console.log('Schedule Data Connected');
+    console.log('Schedule table created/verified');
   });
 };
 
-module.exports = {createScheduleTable};
+module.exports = { createScheduleTable };

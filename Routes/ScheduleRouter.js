@@ -6,7 +6,9 @@ const {
   markSchedulePublic,
   deleteSchedule,
   editSchedule,
-  getTodayScheduleCount
+  getTodayScheduleCount,
+  markSchedule,
+  markMissed
 } = require('../Controllers/ScheduleController');
 
 const router = express.Router();
@@ -18,5 +20,10 @@ router.put('/markPublic/:id', markSchedulePublic);
 router.delete('/deleteSchedule/:id', deleteSchedule);
 router.put('/editSchedule/:id', editSchedule);
 router.get('/todayCount', getTodayScheduleCount);
+router.patch('/:scheduleId/mark', markSchedule);
+
+setInterval(markMissed, 24 * 60 * 60 * 1000);
+
+markMissed();
 
 module.exports = router;

@@ -26,9 +26,15 @@ const TicketSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  comment: {
+    type: String
+  },
   date: {
     type: Date,
     default: Date.now
+  },
+  lastEdit: {
+    type: Date
   },
   status: {
     type: String,

@@ -38,7 +38,7 @@ const createSchedule = async (req, res) => {
 // 2. Get all Schedules by Scheduler
 const getSchedulesByScheduler = (req, res) => {
   const { scheduler } = req.params;
-
+ console.log(scheduler);
   const query = `SELECT * FROM schedules WHERE scheduler = ?`;
   db.query(query, [scheduler], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch schedules' });
@@ -105,12 +105,59 @@ const getTodayScheduleCount = (req, res) => {
   const query = `
     SELECT COUNT(*) AS count
     FROM schedules
-    WHERE scheduler = ? AND DATE(schedule_date) = ?
+    WHERE scheduler = ? AND DATE(schedule_date) = ? AND seen = 'pending' OR seen = 'missing'
   `;
 
   db.query(query, [email, today], (err, results) => {
     if (err) return res.status(500).json({ error: 'DB Error' });
     res.json({ count: results[0].count });
+  });
+};
+
+// 8. Mark Schedule
+const markSchedule = (req, res) => {
+
+  const { scheduleId } = req.params;
+
+  const query = `
+    UPDATE schedules 
+    SET seen = 'marked' 
+    WHERE id = ? 
+    AND seen = 'pending'
+    AND schedule_date >= CURDATE()
+  `;
+
+  db.query(query, [scheduleId], (err, result) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        error: 'Schedule not found, already processed, or date passed' 
+      });
+    }
+
+    res.json({ message: 'Schedule marked successfully' });
+  });
+};
+
+// 9. Mark Schedule Missing
+const markMissed = (req, res) => {
+
+  const query = `
+    UPDATE schedules 
+    SET seen = 'missed' 
+    WHERE seen = 'pending' 
+    AND schedule_date < CURDATE()
+  `;
+  
+  db.query(query, (err) => {
+    if (err) {
+      console.error('Missed schedules update failed:', err);
+    } else {
+      console.log('Missed schedules updated');
+    }
   });
 };
 
@@ -121,5 +168,7 @@ module.exports = {
   markSchedulePublic,
   deleteSchedule,
   editSchedule,
-  getTodayScheduleCount
+  getTodayScheduleCount,
+  markSchedule,
+  markMissed
 };

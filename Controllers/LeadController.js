@@ -4,6 +4,9 @@ const Rate = require('../Models/RateModel');
 const Call = require('../Models/CallModel');
 const Doc  = require('../Models/DocModel');
 const Sale = require('../Models/SaleModel');
+const Equipment = require('../Models/Equipment');
+const { sendMail, getLeadAssignmentTemplate } = require('../Modules/Nodemailer');
+
 const db = require('../db');
 
 // 1. Create Lead
@@ -11,14 +14,13 @@ const createLead = async (req, res) => {
   try {
     const { personal_email, business_name, business_email } = req.body;
 
-    const existingLead = await Lead.findOne({
-      $or: [
-        { personal_email },
-        { business_name },
-        { business_email: business_email || null }
-      ]
-    });
+    const conditions = [
+      { personal_email },
+      { business_name }
+    ];
+    if (business_email) conditions.push({ business_email });
 
+    const existingLead = await Lead.findOne({ $or: conditions });
     if (existingLead) {
       return res.status(400).json({ error: 'Lead already exists' });
     }
@@ -26,33 +28,40 @@ const createLead = async (req, res) => {
     const newLead = new Lead(req.body);
     const savedLead = await newLead.save();
 
-    const { email, person_name } = savedLead;
+    const { email, person_name, business_name: bName } = savedLead;
     const user = await User.findOne({ email });
-
-    const notifier = `${user.firstName} ${user.lastName}`;
-    const detail = `Created a new lead: ${person_name} from ${business_name}`;
-
-    const notifyQuery = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(notifyQuery, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
 
     const followupDate = new Date();
     followupDate.setDate(followupDate.getDate() + 2);
 
-    const scheduleDetails = `Call to ${person_name || 'Unknown Client'} of ${business_name || 'Unknown Business'} for FollowUp`;
-    const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
+    const scheduleDetails = `Call to ${person_name || 'Unknown Client'} of ${bName || 'Unknown Business'} for FollowUp`;
 
-    db.query(scheduleQuery, ['arsaljawed9090@gmail.com', scheduleDetails, followupDate.toISOString().split('T')[0]], (err) => {
-      if (err) console.error('Failed to insert schedule:', err);
-    });
+    if (user && (user.role === 1 || user.role === 2)) {
+      savedLead.closure1 = user.email;
+      await savedLead.save();
+
+      const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
+      db.query(scheduleQuery, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, followupDate.toISOString().split('T')[0]]);
+      db.query(scheduleQuery, [email, scheduleDetails, followupDate.toISOString().split('T')[0]]);
+    }
+
+    if (user) {
+      const notifier = `${user.firstName} ${user.lastName}`;
+      const detail = `Created a new lead: ${person_name} from ${bName}`;
+      const notifyQuery = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
+      db.query(notifyQuery, [notifier, detail]);
+    }
+
+    // Default schedule creation
+    const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
+    db.query(scheduleQuery, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, followupDate.toISOString().split('T')[0]]);
 
     res.status(201).json(savedLead);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create lead' });
+    console.error('Error creating lead:', err);
+    res.status(500).json({ error: err.message || 'Failed to create lead' });
   }
 };
-
 
 // 2. Edit Lead
 const editLead = async (req, res) => {
@@ -122,36 +131,47 @@ const assignLead = async (req, res) => {
     const message = `Call to ${clientName} of ${businessName} for FollowUp`;
 
     if (closure1) {
-      const user1 = await User.findById(closure1);
-      if (!user1) return res.status(404).json({ error: 'Closure 1 user not found' });
-      updateFields.closure1 = user1.email;
-      updateFields.assignDate1 = new Date();
+  const user1 = await User.findById(closure1);
+  if (!user1) return res.status(404).json({ error: 'Closure 1 user not found' });
 
-      const followupDate1 = new Date();
-      followupDate1.setDate(followupDate1.getDate() + 2);
+  const assignDate1 = new Date();
+  const followupDate1 = new Date(assignDate1);
+  followupDate1.setDate(assignDate1.getDate() + 2);
 
-      schedules.push({
-        scheduler: user1.email,
-        details: message,
-        schedule_date: followupDate1.toISOString().split('T')[0]
-      });
-    }
+  updateFields.closure1 = user1.email;
+  updateFields.assignDate1 = assignDate1;
 
-    if (closure2) {
-      const user2 = await User.findById(closure2);
-      if (!user2) return res.status(404).json({ error: 'Closure 2 user not found' });
-      updateFields.closure2 = user2.email;
-      updateFields.assignDate2 = new Date();
+  schedules.push({
+    scheduler: user1.email,
+    details: message,
+    schedule_date: followupDate1.toISOString().split('T')[0]
+  });
 
-      const followupDate2 = new Date();
-      followupDate2.setDate(followupDate2.getDate() + 2);
+  const html1 = getLeadAssignmentTemplate(lead, assignDate1, followupDate1);
+  await sendMail(user1.email, '📋 New Lead Assigned to You', html1);
+}
 
-      schedules.push({
-        scheduler: user2.email,
-        details: message,
-        schedule_date: followupDate2.toISOString().split('T')[0]
-      });
-    }
+if (closure2) {
+  const user2 = await User.findById(closure2);
+  if (!user2) return res.status(404).json({ error: 'Closure 2 user not found' });
+
+  const assignDate2 = new Date();
+  const followupDate2 = new Date(assignDate2);
+  followupDate2.setDate(assignDate2.getDate() + 2);
+
+  updateFields.closure2 = user2.email;
+  updateFields.assignDate2 = assignDate2;
+
+  schedules.push({
+    scheduler: user2.email,
+    details: message,
+    schedule_date: followupDate2.toISOString().split('T')[0]
+  });
+
+  const html2 = getLeadAssignmentTemplate(lead, assignDate2, followupDate2);
+  await sendMail(user2.email, '📋 New Lead Assigned to You', html2);
+}
+
 
     if (Object.keys(updateFields).length === 0)
       return res.status(400).json({ error: 'No valid data to update' });
@@ -207,14 +227,26 @@ const validateLeadForClosure = async (leadId, userEmail) => {
     if (!uploadedDocs.includes(doc)) throw new Error(`Missing required document: ${doc}`);
   }
 
+  const hasEquipment = await Equipment.exists({ clientId: lead.lead_id });
+  if (!hasEquipment) throw new Error('Equipment details are required before closing');
+
   const user = await User.findOne({ email: userEmail });
   if (!user) throw new Error('User not found');
 
-  const hasCall = await Call.exists({ clientId: leadId});
+  const hasCall = await Call.exists({ clientId: leadId });
   if (!hasCall) throw new Error('No call log found for this user and client');
 
   return { lead, user };
 };
+
+const validateLostClosure = async (leadId, userEmail) => {
+  const lead = await Lead.findById(leadId);
+  if (!lead) throw new Error('Lead not found');
+
+  if (lead.rating <= 0) throw new Error('You must rate the lead before closing');
+  const hasCall = await Call.exists({ clientId: leadId});
+  if (!hasCall) throw new Error('No call log found for this user and client');
+}
 
 // 6. Mark Lead as Won
 const wonLead = async (req, res) => {
@@ -253,7 +285,7 @@ const wonLead = async (req, res) => {
 const lossLead = async (req, res) => {
   try {
     const { user } = req.body;
-    const { lead } = await validateLeadForClosure(req.params.id, user);
+    const { lead } = await validateLostClosure(req.params.id, user);
 
     const updatedLead = await Lead.findByIdAndUpdate(
       lead._id,
@@ -376,6 +408,175 @@ const updateLeadNotes = async (req, res) => {
   }
 };
 
+// 13. Get My Clients
+const getMyClients = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    const leads = await Lead.find({
+      $or: [{ closure1: email }, { closure2: email }]
+    });
+
+    const leadIds = leads.map(l => l.lead_id?.toString()).filter(Boolean);
+
+    const [sales, equipment] = await Promise.all([
+      Sale.find({ clientId: { $in: leadIds } }),
+      Equipment.find({ clientId: { $in: leadIds } })
+    ]);
+
+    const saleMap = {};
+    const equipmentMap = {};
+
+    for (let sale of sales) {
+      saleMap[sale.clientId] = sale;
+    }
+
+    for (let eq of equipment) {
+      const key = eq.clientId;
+      if (!equipmentMap[key]) equipmentMap[key] = [];
+      equipmentMap[key].push(eq);
+    }
+
+    const combined = leads.map(lead => {
+      const id = lead.lead_id?.toString();
+      return {
+        ...lead._doc,
+        sale: saleMap[id] || null,
+        equipment: equipmentMap[id] || []
+      };
+    });
+
+    res.json(combined);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 14. Get All Sales
+const getAllSales = async (req, res) => {
+  try {
+    const leads = await Lead.find();
+    const leadIds = leads.map(lead => lead.lead_id?.toString()).filter(Boolean);
+
+    const [sales, equipment] = await Promise.all([
+      Sale.find({ clientId: { $in: leadIds } }),
+      Equipment.find({ clientId: { $in: leadIds } })
+    ]);
+
+    const saleMap = {};
+    const equipmentMap = {};
+
+    for (let sale of sales) {
+      saleMap[sale.clientId] = sale;
+    }
+
+    for (let eq of equipment) {
+      const key = eq.clientId;
+      if (!equipmentMap[key]) equipmentMap[key] = [];
+      equipmentMap[key].push(eq);
+    }
+
+    const combined = leads.map(lead => {
+      const id = lead.lead_id?.toString();
+      return {
+        ...lead._doc,
+        sale: saleMap[id] || null,
+        equipment: equipmentMap[id] || []
+      };
+    });
+
+    res.json(combined);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 15. Add Previous Client
+const createClient = async (req, res) => {
+  try {
+    const {
+      email,
+      person_name,
+      personal_email,
+      contact,
+      dob,
+      ssn,
+      driversLicenseNumber,
+      address,
+      business_name,
+      business_email,
+      businessRole,
+      business_contact,
+      ownershipPercentage,
+      yearsInBusiness,
+      locations,
+      incorporateState,
+      bankName,
+      rtn,
+      accountNumber,
+      accountType,
+    } = req.body;
+    const status = "won";
+    const lead = new Lead({
+      email,
+      person_name,
+      personal_email,
+      contact,
+      dob,
+      ssn,
+      driversLicenseNumber,
+      address,
+      followupDate: new Date(),
+      status,
+      business_name,
+      business_email,
+      businessRole,
+      business_contact,
+      ownershipPercentage,
+      yearsInBusiness,
+      locations,
+      incorporateState,
+
+      bankName,
+      rtn,
+      accountNumber,
+      accountType,
+
+      closure1: 'not specified'
+    });
+
+    await lead.save();
+    res.status(201).json({ success: true, lead });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// 16. Update Notes
+const updateNotes = async (req, res) => {
+  try {
+    const { clientId, remarks } = req.body;
+
+    if (!clientId || !remarks) {
+      return res.status(400).json({ success: false, error: 'clientId and notes are required' });
+    }
+
+    const updatedLead = await Lead.findOneAndUpdate(
+      { lead_id: clientId },
+      { notes: remarks },
+      { new: true }
+    );
+
+    if (!updatedLead) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+
+    res.json({ success: true, message: 'Notes updated successfully', lead: updatedLead });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 module.exports = {
   createLead,
   editLead,
@@ -388,5 +589,9 @@ module.exports = {
   assignSecondClosure,
   getLeadsByClosure,
   updateClientRating,
-  updateLeadNotes
+  updateLeadNotes,
+  getMyClients,
+  getAllSales,
+  createClient,
+  updateNotes
 };

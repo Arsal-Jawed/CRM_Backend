@@ -12,7 +12,11 @@ const {
   assignSecondClosure,
   getLeadsByClosure,
   updateClientRating,
-  updateLeadNotes
+  updateLeadNotes,
+  getMyClients,
+  getAllSales,
+  createClient,
+  updateNotes
 } = require('../Controllers/LeadController');
 
 router.post('/create', createLead);
@@ -27,5 +31,9 @@ router.get('/email/:email', getLeadsByEmail);
 router.get('/getByClosure/:email', getLeadsByClosure);
 router.put('/rateClient/:id', updateClientRating);
 router.put('/notes/:id', updateLeadNotes);
+router.get('/getMyClients/:email', getMyClients);
+router.get('/allClients',getAllSales);
+router.post('/createClient', createClient);
+router.post('/notes', updateNotes);
 
 module.exports = router;

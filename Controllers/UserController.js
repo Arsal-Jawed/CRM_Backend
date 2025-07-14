@@ -75,7 +75,7 @@ const editUser = async (req, res) => {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'profilePics'
       });
-      updates.profilePic = `this path/${result.secure_url}`;
+      updates.profilePic = `${result.secure_url}`;
       fs.unlinkSync(req.file.path);
     }
 
@@ -201,4 +201,24 @@ const getUsersByTeamId = async (req, res) => {
   }
 };
 
-module.exports = { createUser, loginUser, editUser, getAllUsers, deleteUser, getAllFiredUsers, getUserStats, getUsersWithoutTeam, getUsersByTeamId }
+const getUsersByRole = async (req, res) => {
+  const { role } = req.params;
+
+  try {
+    const users = await User.find({ role: role.toString() });
+
+    const formatted = users.map(u => ({
+      id: u._id,
+      email: u.email,
+      name: `${u.firstName} ${u.lastName}`,
+      designation: u.designation,
+      role: u.role
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users by role' });
+  }
+};
+
+module.exports = { createUser, loginUser, editUser, getAllUsers, deleteUser, getAllFiredUsers, getUserStats, getUsersWithoutTeam, getUsersByTeamId, getUsersByRole }
