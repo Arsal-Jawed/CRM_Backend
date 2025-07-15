@@ -23,6 +23,8 @@ const dataRoutes = require('./Routes/DataRouter.js');
 const {createNotificationTable} = require('./SQL/Notification.js');
 const {createScheduleTable} = require('./SQL/Schedules.js');
 
+require('./Modules/Cron.js');
+
 const app = express();
 const PORT = process.env.PORT;
 
