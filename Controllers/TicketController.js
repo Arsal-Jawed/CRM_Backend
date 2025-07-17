@@ -5,6 +5,9 @@ const Lead = require('../Models/LeadModel');
 const createTicket = async (req, res) => {
   try {
     const { leadId, generatorType, generator, details, comment } = req.body;
+    if (!leadId || !generatorType || !generator || !details) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
 
     const now = new Date();
 
@@ -22,9 +25,11 @@ const createTicket = async (req, res) => {
 
     res.status(201).json(ticket);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create ticket' });
+    console.error('Create Ticket Error:', err);
+    res.status(500).json({ error: 'Failed to create ticket', message: err.message });
   }
 };
+
 
 const editDetails = async (req, res) => {
   try {

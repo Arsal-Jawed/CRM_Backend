@@ -5,12 +5,14 @@ const leadSchema = new mongoose.Schema({
   lead_id: { type: Number },
   email: { type: String, required: true },
   person_name: { type: String, required: true },
+  legal_name: {type: String},
   personal_email: { type: String, required: true },
   business_name: { type: String, required: true },
   business_email: { type: String},
   contact: { type: String, required: true },
   business_contact: { type: String},
   address: { type: String},
+  legal_address: {type: String},
   followupDate: {type: Date, required: true},
 
   status: { type: String, default: 'in process' },
@@ -33,9 +35,8 @@ const leadSchema = new mongoose.Schema({
   notes: { type: String },
 
   businessRole: { type: String },
-  yearsInBusiness: { type: Number },
-  incorporateState: { type: String },
-  locations: { type: Number },
+  established: { type: Date },
+  business_address: { type: String },
 
   dob: { type: Date },
   ssn: { type: String },
@@ -44,8 +45,7 @@ const leadSchema = new mongoose.Schema({
 
   bankName: { type: String },
   rtn: { type: String },
-  accountNumber: { type: String },
-  accountType: { type: String }
+  accountNumber: { type: String }
 });
 
 leadSchema.plugin(AutoIncrement, { inc_field: 'lead_id' });
