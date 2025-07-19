@@ -12,10 +12,10 @@ const markAttendance = (req, res) => {
   start.setHours(9, 0, 0);
 
   const late = new Date();
-  late.setHours(9, 30, 0);
+  late.setHours(9, 35, 0);
 
-  const end = new Date();
-  end.setHours(11, 45, 0);
+  // const end = new Date();
+  // end.setHours(11, 45, 0);
 
   if (now < start || now > end) {
     return res.status(200).json({ message: 'Attendance window closed' });
