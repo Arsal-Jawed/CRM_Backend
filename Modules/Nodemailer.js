@@ -21,10 +21,7 @@ const sendMail = (to, subject, htmlContent) => {
 };
 
 const getCRMTemplate = (username, userEmail, userPassword, action, details, role) => {
-  let roleLabel = 'Unknown Role';
-  if (role === 3) roleLabel = 'Lead Generator';
-  else if (role === 2) roleLabel = 'Business Developer';
-  else if (role === 1) roleLabel = 'Sales Head';
+  let roleLabel = role;
 
   return `
     <div style="font-family:'Segoe UI', sans-serif; max-width:600px; margin:20px auto; border-radius:12px; overflow:hidden; box-shadow:0 0 12px rgba(0,0,0,0.15); border:1px solid #ffa726;">

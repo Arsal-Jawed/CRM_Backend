@@ -34,7 +34,7 @@ const createUser = async (req, res) => {
       password,
       'Account Created',
       'Your CRM account has been successfully created. You can now log in using the credentials below.',
-      newUser.role
+      newUser.designation
     );
 
     await sendMail(newUser.email, '✅ CRM Account Created', html);
@@ -81,14 +81,14 @@ const editUser = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true });
     if (!updatedUser) return res.status(404).json({ message: 'User not found' });
-
+    
     const html = getCRMTemplate(
       updatedUser.firstName,
       updatedUser.email,
       req.body.password || '********',
       'Account Updated',
       'Your CRM account details have been updated. If you did not request this change, contact your admin.',
-      updatedUser.role
+      updatedUser.designation
     );
 
     await sendMail(updatedUser.email, '✏️ CRM Account Updated', html);
@@ -134,7 +134,7 @@ const deleteUser = async (req, res) => {
       '********',
       'Account Deleted',
       'Your CRM account has been deleted. If this was a mistake, contact support immediately.',
-      deletedUser.role
+      'terminated'
     );
 
     await sendMail(deletedUser.email, '❌ CRM Account Deleted', html);

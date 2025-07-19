@@ -221,7 +221,7 @@ const validateLeadForClosure = async (leadId, userEmail) => {
 
   if (lead.rating <= 0) throw new Error('You must rate the lead before closing');
 
-  const requiredDocs = ['Driving License', 'Application Form', 'Void Check'];
+  const requiredDocs = ['Driving License', 'Void Check'];
   const uploadedDocs = await Doc.find({ clientId: leadId }).distinct('docName');
   for (let doc of requiredDocs) {
     if (!uploadedDocs.includes(doc)) throw new Error(`Missing required document: ${doc}`);
