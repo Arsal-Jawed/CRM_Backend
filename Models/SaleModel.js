@@ -22,7 +22,7 @@ const saleSchema = new mongoose.Schema({
   leaseSubmitDate: { type: Date },
   leaseSubmitBy: { type: String },
 
-  leaseApprovalStatus: { type: String, enum: ['Approved', 'Rejected', 'Pending'], default: 'Pending' },
+  leaseApprovalStatus: { type: String, enum: ['Approved', 'Rejected', 'Pending','Buyback', 'Funded'], default: 'Pending' },
   leaseApprovalDate: { type: Date },
   leaseApprovedBy: { type: String },
   leasingCompany: {type: String, Default:'PCL'},

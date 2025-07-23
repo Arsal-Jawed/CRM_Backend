@@ -7,7 +7,7 @@ const createAttendanceTable = () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_email VARCHAR(255),
         date DATE,
-        status ENUM('Present', 'Absent', 'Leave', 'Late') DEFAULT 'Present',
+        status ENUM('Present', 'Absent', 'Leave', 'Late','Half') DEFAULT 'Present',
         check_in_time TIME,
         check_out_time TIME,
         remarks TEXT

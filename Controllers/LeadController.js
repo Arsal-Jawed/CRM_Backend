@@ -497,6 +497,7 @@ const createClient = async (req, res) => {
     const {
       email,
       person_name,
+      legal_name,
       personal_email,
       contact,
       dob,
@@ -506,20 +507,19 @@ const createClient = async (req, res) => {
       business_name,
       business_email,
       businessRole,
+      business_address,
       business_contact,
       ownershipPercentage,
-      yearsInBusiness,
-      locations,
-      incorporateState,
+      established,
       bankName,
       rtn,
-      accountNumber,
-      accountType,
+      accountNumber
     } = req.body;
     const status = "won";
     const lead = new Lead({
       email,
       person_name,
+      legal_name,
       personal_email,
       contact,
       dob,
@@ -533,14 +533,12 @@ const createClient = async (req, res) => {
       businessRole,
       business_contact,
       ownershipPercentage,
-      yearsInBusiness,
-      locations,
-      incorporateState,
+      established,
+      business_address,
 
       bankName,
       rtn,
       accountNumber,
-      accountType,
 
       closure1: 'not specified'
     });

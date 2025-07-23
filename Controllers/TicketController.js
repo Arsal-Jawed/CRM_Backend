@@ -30,26 +30,24 @@ const createTicket = async (req, res) => {
   }
 };
 
-
 const editDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const { comment } = req.body;
 
-    const updated = await Ticket.findByIdAndUpdate(
-      id,
-      {
-        comment,
-        lastEdit: new Date()
-      },
-      { new: true }
-    );
+    const ticket = await Ticket.findById(id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
 
-    if (!updated) return res.status(404).json({ error: 'Ticket not found' });
+    const separator = '\n------\n';
+    ticket.comment = (ticket.comment || '') + separator + comment;
+    ticket.lastEdit = new Date();
 
-    res.json(updated);
+    await ticket.save();
+
+    res.json(ticket);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update comment' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to append comment' });
   }
 };
 
