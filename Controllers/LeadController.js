@@ -575,6 +575,44 @@ const updateNotes = async (req, res) => {
   }
 }
 
+// 17. Check Lead Existence
+const checkLeadExistence = async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) {
+      return res.status(400).json({ message: 'Query value is required.' });
+    }
+
+    const lead = await Lead.findOne({
+      $or: [
+        { person_name: query },
+        { personal_email: query },
+        { business_email: query },
+        { business_name: query }
+      ]
+    }).lean();
+   console.log(lead)
+    if (!lead) {
+      return res.status(200).json({ exists: false, message: 'Fresh Lead, lead does not exist' });
+    }
+
+    const user = await User.findOne({ email: lead.email }).lean();
+    const userName = user ? `${user.firstName} ${user.lastName}` : 'User not found';
+
+    return res.status(200).json({
+      exists: true,
+      name: userName,
+      date: lead.date,
+      email: lead.email,
+      message: 'Lead exists'
+    });
+
+  } catch (err) {
+    console.error('Error checking lead existence:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   createLead,
   editLead,
@@ -591,5 +629,6 @@ module.exports = {
   getMyClients,
   getAllSales,
   createClient,
-  updateNotes
+  updateNotes,
+  checkLeadExistence
 };

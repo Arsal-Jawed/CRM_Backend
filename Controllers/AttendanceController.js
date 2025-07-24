@@ -2,7 +2,7 @@ const db = require('../db');
 const moment = require('moment');
 const User = require('../Models/UserModel');
 
-const markAttendance = (req, res) => {
+const markAttendance = async (req, res) => {
   const { email, remarks = '' } = req.body;
   const now = new Date();
   const currentDate = now.toISOString().slice(0, 10);
@@ -18,9 +18,12 @@ const markAttendance = (req, res) => {
     return res.status(200).json({ message: 'Attendance window closed' });
   }
 
-  User.findOne({ email }, (err, user) => {
-    if (err) return res.status(500).json({ message: 'Error fetching user role' });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+  try {
+    const user = await User.findOne({ email }).lean();
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     const late = new Date();
     if (user.role === 1) {
@@ -32,23 +35,34 @@ const markAttendance = (req, res) => {
     const status = now < late ? 'Present' : 'Late';
 
     const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
+
     db.query(checkQuery, [email, currentDate], (err2, rows) => {
-      if (err2) return res.status(500).json({ message: 'Database error' });
+      if (err2) {
+        console.error('Database error:', err2);
+        return res.status(500).json({ message: 'Database error' });
+      }
 
       if (rows.length > 0) {
         return res.status(400).json({ message: 'Attendance already marked for today' });
       }
 
-      const insertQuery = `INSERT INTO attendance (user_email, date, status, check_in_time, remarks)
-                           VALUES (?, ?, ?, ?, ?)`;
+      const insertQuery = `
+        INSERT INTO attendance (user_email, date, status, check_in_time, remarks)
+        VALUES (?, ?, ?, ?, ?)`;
 
       db.query(insertQuery, [email, currentDate, status, checkIn, remarks], (err3) => {
-        if (err3) return res.status(500).json({ message: 'Failed to mark attendance' });
+        if (err3) {
+          console.error('Insert error:', err3);
+          return res.status(500).json({ message: 'Failed to mark attendance' });
+        }
 
         return res.status(200).json({ message: `Attendance marked as ${status}` });
       });
     });
-  });
+  } catch (err) {
+    console.error('Mongoose error:', err);
+    return res.status(500).json({ message: 'Error fetching user role' });
+  }
 };
 
 const markCheckout = (req, res) => {
@@ -241,10 +255,78 @@ const markLeave = (req, res) => {
   });
 };
 
+const markAllWithStatus = async (req, res, status) => {
+  const { date, remarks = '' } = req.body;
+  const targetDate = date || moment().format('YYYY-MM-DD');
+
+  try {
+    const users = await User.find({}, 'email').lean();
+    const emails = users.map(u => u.email);
+
+    let completed = 0;
+    let hasError = false;
+
+    emails.forEach(email => {
+      const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
+
+      db.query(checkQuery, [email, targetDate], (err, rows) => {
+        if (err) {
+          hasError = true;
+          completed++;
+          return;
+        }
+
+        if (rows.length > 0) {
+          const updateQuery = `
+            UPDATE attendance 
+            SET status = ?, remarks = ?
+            WHERE user_email = ? AND date = ?`;
+
+          db.query(updateQuery, [status, remarks, email, targetDate], (err2) => {
+            if (err2) hasError = true;
+            completed++;
+            if (completed === emails.length) {
+              if (hasError) return res.status(500).json({ message: `Some records failed to update as ${status}` });
+              return res.status(200).json({ message: `All users marked as ${status}` });
+            }
+          });
+        } else {
+          const insertQuery = `
+            INSERT INTO attendance (user_email, date, status, remarks)
+            VALUES (?, ?, ?, ?)
+          `;
+
+          db.query(insertQuery, [email, targetDate, status, remarks], (err2) => {
+            if (err2) hasError = true;
+            completed++;
+            if (completed === emails.length) {
+              if (hasError) return res.status(500).json({ message: `Some records failed to insert as ${status}` });
+              return res.status(200).json({ message: `All users marked as ${status}` });
+            }
+          });
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Bulk mark error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const markAllPresent = (req, res) => markAllWithStatus(req, res, 'Present');
+const markAllAbsent = (req, res) => markAllWithStatus(req, res, 'Absent');
+const markAllLate = (req, res) => markAllWithStatus(req, res, 'Late');
+const markAllLeave = (req, res) => markAllWithStatus(req, res, 'Leave');
+
+
 module.exports = {
   markAttendance,
   markCheckout,
   getMonthlyAttendance,
   markHalfDay,
-  markLeave
+  markLeave,
+  markAllPresent,
+  markAllAbsent,
+  markAllLate,
+  markAllLeave
 };

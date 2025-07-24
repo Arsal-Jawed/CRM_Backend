@@ -16,7 +16,8 @@ const {
   getMyClients,
   getAllSales,
   createClient,
-  updateNotes
+  updateNotes,
+  checkLeadExistence
 } = require('../Controllers/LeadController');
 
 router.post('/create', createLead);
@@ -35,5 +36,6 @@ router.get('/getMyClients/:email', getMyClients);
 router.get('/allClients',getAllSales);
 router.post('/createClient', createClient);
 router.post('/notes', updateNotes);
+router.post('/check-lead', checkLeadExistence);
 
 module.exports = router;
