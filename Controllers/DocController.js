@@ -115,12 +115,27 @@ const getAllDocs = async (req, res) => {
 
 const getDocsByClient = async (req, res) => {
   try {
-    const docs = await Doc.find({ clientId: req.params.clientId }).sort({ date: -1 });
+    const { lead_id, client_id } = req.query;
+
+    if (!lead_id && !client_id) {
+      return res.status(400).json({ message: 'lead_id or client_id is required' });
+    }
+
+    const idsToMatch = [];
+
+    if (lead_id) idsToMatch.push(lead_id);
+    if (client_id) idsToMatch.push(client_id);
+
+    const docs = await Doc.find({
+      clientId: { $in: idsToMatch }
+    }).sort({ date: -1 });
+
     res.status(200).json(docs);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch client documents', error: err });
   }
 };
+
 
 const editDoc = async (req, res) => {
   try {

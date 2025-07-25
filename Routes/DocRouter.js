@@ -15,7 +15,7 @@ const {
 router.post('/create', upload.single('file'), addDoc);
 router.post('/uploadMultiple', upload.array('files'), uploadMultipleDocs);
 router.get('/all', getAllDocs);
-router.get('/clientDocs/:clientId', getDocsByClient);
+router.get('/clientDocs', getDocsByClient);
 router.put('/edit/:id', editDoc);
 router.delete('/remove/:id', removeDoc);
 
