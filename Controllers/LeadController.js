@@ -591,7 +591,7 @@ const checkLeadExistence = async (req, res) => {
         { business_name: query }
       ]
     }).lean();
-   console.log(lead)
+  //  console.log(lead)
     if (!lead) {
       return res.status(200).json({ exists: false, message: 'Fresh Lead, lead does not exist' });
     }
