@@ -118,7 +118,7 @@ const rateLead = async (req, res) => {
 // 4. Assign Follow-Up
 const assignLead = async (req, res) => {
   try {
-    const { closure1, closure2 } = req.body;
+    const { closure1 } = req.body;
     const updateFields = {};
     const schedules = [];
 
@@ -127,51 +127,28 @@ const assignLead = async (req, res) => {
 
     const clientName = lead.person_name || 'Unknown Client';
     const businessName = lead.business_name || 'Unknown Business';
-
     const message = `Call to ${clientName} of ${businessName} for FollowUp`;
 
     if (closure1) {
-  const user1 = await User.findById(closure1);
-  if (!user1) return res.status(404).json({ error: 'Closure 1 user not found' });
+      const user1 = await User.findById(closure1);
+      if (!user1) return res.status(404).json({ error: 'Closure 1 user not found' });
 
-  const assignDate1 = new Date();
-  const followupDate1 = new Date(assignDate1);
-  followupDate1.setDate(assignDate1.getDate() + 2);
+      const assignDate1 = new Date();
+      const followupDate1 = new Date(assignDate1);
+      followupDate1.setDate(assignDate1.getDate() + 2);
 
-  updateFields.closure1 = user1.email;
-  updateFields.assignDate1 = assignDate1;
+      updateFields.closure1 = user1.email;
+      updateFields.assignDate1 = assignDate1;
 
-  schedules.push({
-    scheduler: user1.email,
-    details: message,
-    schedule_date: followupDate1.toISOString().split('T')[0]
-  });
+      schedules.push({
+        scheduler: user1.email,
+        details: message,
+        schedule_date: followupDate1.toISOString().split('T')[0]
+      });
 
-  const html1 = getLeadAssignmentTemplate(lead, assignDate1, followupDate1);
-  await sendMail(user1.email, '📋 New Lead Assigned to You', html1);
-}
-
-if (closure2) {
-  const user2 = await User.findById(closure2);
-  if (!user2) return res.status(404).json({ error: 'Closure 2 user not found' });
-
-  const assignDate2 = new Date();
-  const followupDate2 = new Date(assignDate2);
-  followupDate2.setDate(assignDate2.getDate() + 2);
-
-  updateFields.closure2 = user2.email;
-  updateFields.assignDate2 = assignDate2;
-
-  schedules.push({
-    scheduler: user2.email,
-    details: message,
-    schedule_date: followupDate2.toISOString().split('T')[0]
-  });
-
-  const html2 = getLeadAssignmentTemplate(lead, assignDate2, followupDate2);
-  await sendMail(user2.email, '📋 New Lead Assigned to You', html2);
-}
-
+      const html1 = getLeadAssignmentTemplate(lead, assignDate1, followupDate1);
+      await sendMail(user1.email, '📋 New Lead Assigned to You', html1);
+    }
 
     if (Object.keys(updateFields).length === 0)
       return res.status(400).json({ error: 'No valid data to update' });
@@ -310,7 +287,7 @@ const lossLead = async (req, res) => {
 // 8. Get All Leads
 const getAllLeads = async (req, res) => {
   try {
-    const leads = await Lead.find();
+    const leads = await Lead.find({ closure1: "not specified" });
 
     const enrichedLeads = await Promise.all(
       leads.map(async (lead) => {
@@ -456,15 +433,19 @@ const getMyClients = async (req, res) => {
 const getAllSales = async (req, res) => {
   try {
     const leads = await Lead.find();
-    const leadIds = leads.map(lead => lead.lead_id?.toString()).filter(Boolean);
 
-    const [sales, equipment] = await Promise.all([
+    const leadIds = leads.map(lead => lead.lead_id?.toString()).filter(Boolean);
+    const closureEmails = leads.map(lead => lead.closure1).filter(Boolean);
+
+    const [sales, equipment, closureUsers] = await Promise.all([
       Sale.find({ clientId: { $in: leadIds } }),
-      Equipment.find({ clientId: { $in: leadIds } })
+      Equipment.find({ clientId: { $in: leadIds } }),
+      User.find({ email: { $in: closureEmails } })
     ]);
 
     const saleMap = {};
     const equipmentMap = {};
+    const closureMap = {};
 
     for (let sale of sales) {
       saleMap[sale.clientId] = sale;
@@ -476,12 +457,19 @@ const getAllSales = async (req, res) => {
       equipmentMap[key].push(eq);
     }
 
+    for (let user of closureUsers) {
+      closureMap[user.email] = `${user.firstName} ${user.lastName}`;
+    }
+
     const combined = leads.map(lead => {
       const id = lead.lead_id?.toString();
+      const closure1Name = closureMap[lead.closure1] || 'Not specified';
+
       return {
         ...lead._doc,
         sale: saleMap[id] || null,
-        equipment: equipmentMap[id] || []
+        equipment: equipmentMap[id] || [],
+        closure1Name
       };
     });
 
@@ -613,6 +601,35 @@ const checkLeadExistence = async (req, res) => {
   }
 };
 
+// 18. Set Closure 1
+const setClosure = async (req, res) => {
+  try {
+    const { closure1 } = req.body;
+    const updateFields = {};
+    const schedules = [];
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    if (closure1) {
+  const user1 = await User.findById(closure1);
+  if (!user1) return res.status(404).json({ error: 'Closure 1 user not found' });
+
+  updateFields.closure1 = user1.email;
+
+}
+    if (Object.keys(updateFields).length === 0)
+      return res.status(400).json({ error: 'No valid data to update' });
+
+    const updatedLead = await Lead.findByIdAndUpdate(req.params.id, updateFields, { new: true });
+
+    res.status(200).json(updatedLead);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to assign follow-up and create schedule' });
+  }
+};
+
 module.exports = {
   createLead,
   editLead,
@@ -630,5 +647,6 @@ module.exports = {
   getAllSales,
   createClient,
   updateNotes,
-  checkLeadExistence
+  checkLeadExistence,
+  setClosure
 };
