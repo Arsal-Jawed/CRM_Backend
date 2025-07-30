@@ -18,7 +18,8 @@ const {
   createClient,
   updateNotes,
   checkLeadExistence,
-  setClosure
+  setClosure,
+  getLeads
 } = require('../Controllers/LeadController');
 
 router.post('/create', createLead);
@@ -29,6 +30,7 @@ router.put('/assignSecond/:id', assignSecondClosure);
 router.put('/won/:id', wonLead);
 router.put('/loss/:id', lossLead);
 router.get('/all', getAllLeads);
+router.get('/allLeads', getLeads);
 router.get('/email/:email', getLeadsByEmail);
 router.get('/getByClosure/:email', getLeadsByClosure);
 router.put('/rateClient/:id', updateClientRating);

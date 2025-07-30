@@ -302,6 +302,24 @@ const getAllLeads = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch leads' });
   }
 };
+// 8.1. Get All Leads
+const getLeads = async (req, res) => {
+  try {
+    const leads = await Lead.find();
+
+    const enrichedLeads = await Promise.all(
+      leads.map(async (lead) => {
+        const user = await User.findOne({ email: lead.email });
+        const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User';
+        return { ...lead.toObject(), userName: fullName };
+      })
+    );
+
+    res.status(200).json(enrichedLeads);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch leads' });
+  }
+};
 
 // 9. Get Leads by Email
 const getLeadsByEmail = async (req, res) => {
@@ -648,5 +666,6 @@ module.exports = {
   createClient,
   updateNotes,
   checkLeadExistence,
-  setClosure
+  setClosure,
+  getLeads
 };
