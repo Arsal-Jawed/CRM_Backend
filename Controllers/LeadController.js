@@ -199,9 +199,16 @@ const validateLeadForClosure = async (leadId, userEmail) => {
   if (lead.rating <= 0) throw new Error('You must rate the lead before closing');
 
   const requiredDocs = ['Driving License', 'Void Check'];
-  const uploadedDocs = await Doc.find({ clientId: leadId }).distinct('docName');
+
+  // Fetch docs using OR condition on both _id and lead_id
+  const uploadedDocs = await Doc.find({
+    clientId: { $in: [lead._id.toString(), lead.lead_id.toString()] }
+  }).distinct('docName');
+
   for (let doc of requiredDocs) {
-    if (!uploadedDocs.includes(doc)) throw new Error(`Missing required document: ${doc}`);
+    if (!uploadedDocs.includes(doc)) {
+      throw new Error(`Missing required document: ${doc}`);
+    }
   }
 
   const hasEquipment = await Equipment.exists({ clientId: lead.lead_id });
@@ -287,7 +294,26 @@ const lossLead = async (req, res) => {
 // 8. Get All Leads
 const getAllLeads = async (req, res) => {
   try {
-    const leads = await Lead.find({ closure1: "not specified" });
+    const leads = await Lead.find({});
+
+    const enrichedLeads = await Promise.all(
+      leads.map(async (lead) => {
+        const user = await User.findOne({ email: lead.email });
+        const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User';
+        return { ...lead.toObject(), userName: fullName };
+      })
+    );
+
+    res.status(200).json(enrichedLeads);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch leads' });
+  }
+};
+
+// 8.1. Get All Leads
+const getLeads = async (req, res) => {
+  try {
+    const leads = await Lead.find();
 
     const enrichedLeads = await Promise.all(
       leads.map(async (lead) => {
@@ -648,5 +674,6 @@ module.exports = {
   createClient,
   updateNotes,
   checkLeadExistence,
-  setClosure
+  setClosure,
+  getLeads
 };
