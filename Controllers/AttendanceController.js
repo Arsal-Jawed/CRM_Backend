@@ -156,8 +156,25 @@ const getMonthlyAttendance = async (req, res) => {
   }
 };
 
+async function insertNotification(managerEmail, detail) {
+  const managerUser = await User.findOne({ email: managerEmail }, 'firstName lastName').lean();
+  if (!managerUser) return;
+  const notifierName = `${managerUser.firstName} ${managerUser.lastName}`;
+  const now = moment().format('YYYY-MM-DD HH:mm:ss');
+  return new Promise((resolve, reject) => {
+    db.query(
+      `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, ?)`,
+      [notifierName, detail, now],
+      (err) => {
+        if (err) return reject(err);
+        resolve();
+      }
+    );
+  });
+}
+
 const markHalfDay = (req, res) => {
-  const { email, remarks = '' } = req.body;
+  const { email, remarks = '', manager } = req.body;
   const currentDate = new Date().toISOString().slice(0, 10);
 
   const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
@@ -165,32 +182,36 @@ const markHalfDay = (req, res) => {
   db.query(checkQuery, [email, currentDate], (err, rows) => {
     if (err) return res.status(500).json({ message: 'Database error' });
 
+    const finalize = async (msg) => {
+      await insertNotification(manager, `${email} marked Half Day by manager`);
+      return res.status(200).json({ message: msg });
+    };
+
     if (rows.length > 0) {
       const updateQuery = `
         UPDATE attendance 
         SET status = 'Half', remarks = ?
         WHERE user_email = ? AND date = ?`;
 
-      db.query(updateQuery, [remarks, email, currentDate], (err2) => {
+      db.query(updateQuery, [remarks, email, currentDate], async (err2) => {
         if (err2) return res.status(500).json({ message: 'Failed to update status to Halfday' });
-        return res.status(200).json({ message: 'Attendance updated to Halfday' });
+        await finalize('Attendance updated to Halfday');
       });
     } else {
       const insertQuery = `
         INSERT INTO attendance (user_email, date, status, remarks, check_in_time)
         VALUES (?, ?, 'Half', ?, ?)`;
 
-      db.query(insertQuery, [email, currentDate, remarks, '11:59:30'], (err2) => {
+      db.query(insertQuery, [email, currentDate, remarks, '11:59:30'], async (err2) => {
         if (err2) return res.status(500).json({ message: 'Failed to mark Halfday' });
-        return res.status(200).json({ message: 'Halfday marked successfully' });
+        await finalize('Halfday marked successfully');
       });
     }
   });
 };
 
-
 const markLeave = (req, res) => {
-  const { email, fromDate, toDate, remarks = '' } = req.body;
+  const { email, fromDate, toDate, remarks = '', manager } = req.body;
 
   if (!fromDate || !toDate || !email) {
     return res.status(400).json({ message: 'email, fromDate, and toDate are required' });
@@ -223,32 +244,33 @@ const markLeave = (req, res) => {
         return;
       }
 
+      const finalize = async () => {
+        completed++;
+        if (completed === dates.length) {
+          await insertNotification(manager, `${email} marked Leave (${fromDate} to ${toDate}) by manager`);
+          if (hasError) return res.status(500).json({ message: 'Some records failed to process' });
+          return res.status(200).json({ message: 'Leave marked successfully on given dates' });
+        }
+      };
+
       if (rows.length > 0) {
         const updateQuery = `
           UPDATE attendance
           SET status = 'Leave', remarks = ?
           WHERE user_email = ? AND date = ?`;
 
-        db.query(updateQuery, [remarks, email, date], (err2) => {
-          completed++;
+        db.query(updateQuery, [remarks, email, date], async (err2) => {
           if (err2) hasError = true;
-          if (completed === dates.length) {
-            if (hasError) return res.status(500).json({ message: 'Some records failed to update' });
-            return res.status(200).json({ message: 'Leave marked successfully on given dates' });
-          }
+          await finalize();
         });
       } else {
         const insertQuery = `
           INSERT INTO attendance (user_email, date, status, remarks)
           VALUES (?, ?, 'Leave', ?)`; 
 
-        db.query(insertQuery, [email, date, remarks], (err2) => {
-          completed++;
+        db.query(insertQuery, [email, date, remarks], async (err2) => {
           if (err2) hasError = true;
-          if (completed === dates.length) {
-            if (hasError) return res.status(500).json({ message: 'Some records failed to insert' });
-            return res.status(200).json({ message: 'Leave marked successfully on given dates' });
-          }
+          await finalize();
         });
       }
     });
@@ -256,7 +278,7 @@ const markLeave = (req, res) => {
 };
 
 const markAllWithStatus = async (req, res, status) => {
-  const { date, remarks = '' } = req.body;
+  const { date, remarks = '', manager } = req.body;
   const targetDate = date || moment().format('YYYY-MM-DD');
 
   try {
@@ -276,19 +298,24 @@ const markAllWithStatus = async (req, res, status) => {
           return;
         }
 
+        const finalize = async () => {
+          completed++;
+          if (completed === emails.length) {
+            await insertNotification(manager, `All users marked as ${status} by manager`);
+            if (hasError) return res.status(500).json({ message: `Some records failed to process as ${status}` });
+            return res.status(200).json({ message: `All users marked as ${status}` });
+          }
+        };
+
         if (rows.length > 0) {
           const updateQuery = `
             UPDATE attendance 
             SET status = ?, remarks = ?
             WHERE user_email = ? AND date = ?`;
 
-          db.query(updateQuery, [status, remarks, email, targetDate], (err2) => {
+          db.query(updateQuery, [status, remarks, email, targetDate], async (err2) => {
             if (err2) hasError = true;
-            completed++;
-            if (completed === emails.length) {
-              if (hasError) return res.status(500).json({ message: `Some records failed to update as ${status}` });
-              return res.status(200).json({ message: `All users marked as ${status}` });
-            }
+            await finalize();
           });
         } else {
           const insertQuery = `
@@ -296,19 +323,14 @@ const markAllWithStatus = async (req, res, status) => {
             VALUES (?, ?, ?, ?)
           `;
 
-          db.query(insertQuery, [email, targetDate, status, remarks], (err2) => {
+          db.query(insertQuery, [email, targetDate, status, remarks], async (err2) => {
             if (err2) hasError = true;
-            completed++;
-            if (completed === emails.length) {
-              if (hasError) return res.status(500).json({ message: `Some records failed to insert as ${status}` });
-              return res.status(200).json({ message: `All users marked as ${status}` });
-            }
+            await finalize();
           });
         }
       });
     });
   } catch (err) {
-    console.error('Bulk mark error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -317,7 +339,6 @@ const markAllPresent = (req, res) => markAllWithStatus(req, res, 'Present');
 const markAllAbsent = (req, res) => markAllWithStatus(req, res, 'Absent');
 const markAllLate = (req, res) => markAllWithStatus(req, res, 'Late');
 const markAllLeave = (req, res) => markAllWithStatus(req, res, 'Leave');
-
 
 module.exports = {
   markAttendance,

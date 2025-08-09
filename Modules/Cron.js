@@ -27,7 +27,7 @@ mongoose.connect(process.env.MongoURI, {
 }).then(() => console.log('Connected to MongoDB Atlas'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-cron.schedule('15 1 * * *', async () => {
+cron.schedule('10 23 * * *', async () => {
   try {
     const today = new Date().toISOString().split('T')[0];
     console.log(`Cron triggered for date: ${today}`);

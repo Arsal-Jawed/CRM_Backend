@@ -70,11 +70,21 @@ const getEquipmentById = async (req, res) => {
   }
 };
 
+const getAllEquipments = async (req, res) => {
+  try {
+    const equipments = await Equipment.find();
+    res.status(200).json(equipments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   addEquipment,
   editEquipment,
   getEquipmentsByClient,
   deleteEquipment,
   createEquipment,
-  getEquipmentById
+  getEquipmentById,
+  getAllEquipments
 };

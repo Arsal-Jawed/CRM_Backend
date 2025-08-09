@@ -133,7 +133,7 @@ const deleteUser = async (req, res) => {
       deletedUser.email,
       '********',
       'Account Deleted',
-      'Your CRM account has been deleted. If this was a mistake, contact support immediately.',
+      'You are Fired from CallSidd and, your CRM account has been deleted. Good Luck!',
       'terminated'
     );
 
@@ -162,9 +162,9 @@ const getUserStats = async (req, res) => {
     const stats = {
       total: users?.length || 0,
       managers: users?.filter(u => u.role === 1).length || 0,
-      salesClosures: users?.filter(u => u.role === 2).length || 0,
+      salesClosures: users?.filter(u => u.role === 2).length + users?.filter(u => u.role === 6).length || 0,
       leadGens: users?.filter(u => u.role === 3).length || 0,
-      operations: users?.filter(u => u.role === 4).length + 1 || 0,
+      operations: users?.filter(u => u.role === 4).length + users?.filter(u => u.role === 5).length || 0,
       fired: firedUsers?.length || 0
     };
     res.status(200).json(stats);

@@ -32,7 +32,10 @@ const getMsgsbyReciever = async (req, res) => {
       const roleMap = {
         1: 'Sales Head',
         2: 'Sales Closure',
-        3: 'Lead Gen'
+        3: 'Lead Gen',
+        4: 'Operation Rep',
+        5: 'HR Manager',
+        6: 'Lead Gen Supervisor'
       };
 
       return {
