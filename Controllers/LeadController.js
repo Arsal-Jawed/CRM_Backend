@@ -4,6 +4,7 @@ const Rate = require('../Models/RateModel');
 const Call = require('../Models/CallModel');
 const Doc  = require('../Models/DocModel');
 const Sale = require('../Models/SaleModel');
+const Team = require('../Models/TeamModel');
 const Equipment = require('../Models/Equipment');
 const { sendMail, getLeadAssignmentTemplate } = require('../Modules/Nodemailer');
 
@@ -38,6 +39,19 @@ const createLead = async (req, res) => {
 
     if (user && (user.role === 1 || user.role === 2)) {
       savedLead.closure1 = user.email;
+
+      // Agar role === 2 hai, to team leader ka email closure2 me dalna hai
+      if (user.role === 2 && user.team) {
+        const teamData = await Team.findOne({ teamId: user.team });
+
+        if (teamData && teamData.TeamLeader) {
+          const teamLeader = await User.findById(teamData.TeamLeader);
+          if (teamLeader) {
+            savedLead.closure2 = teamLeader.email;
+          }
+        }
+      }
+
       await savedLead.save();
 
       const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
