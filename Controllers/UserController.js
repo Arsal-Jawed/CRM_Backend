@@ -101,7 +101,7 @@ const editUser = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find()
+    const users = await User.find({ role: { $ne: 81 } })
     res.status(200).json(users)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -160,7 +160,7 @@ const getUserStats = async (req, res) => {
     const firedUsers = await FiredUsers.find();
 
     const stats = {
-      total: users?.length || 0,
+      total: users?.filter(u => u.role != 81).length || 0,
       managers: users?.filter(u => u.role === 1).length || 0,
       salesClosures: users?.filter(u => u.role === 2).length + users?.filter(u => u.role === 6).length || 0,
       leadGens: users?.filter(u => u.role === 3).length || 0,
