@@ -1,7 +1,7 @@
 const fs = require('fs');
 const User = require('../Models/UserModel');
+const FiredUsers = require("../Models/FiredUserModel");
 const cloudinary = require('../Modules/Cloudinary');
-const FiredUsers  = require('../Models/FiredUserModel');
 const { sendMail, getCRMTemplate } = require('../Modules/Nodemailer');
 const { encryptPassword,comparePassword } = require('../Modules/Bycrypt');
 
@@ -221,4 +221,15 @@ const getUsersByRole = async (req, res) => {
   }
 };
 
-module.exports = { createUser, loginUser, editUser, getAllUsers, deleteUser, getAllFiredUsers, getUserStats, getUsersWithoutTeam, getUsersByTeamId, getUsersByRole }
+const editFiredUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedUser = await FiredUsers.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updatedUser) return res.status(404).json({ message: "Fired user not found" });
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ message: "Error updating fired user", error: err.message });
+  }
+};
+
+module.exports = { createUser, loginUser, editUser, getAllUsers, deleteUser, getAllFiredUsers, getUserStats, getUsersWithoutTeam, getUsersByTeamId, getUsersByRole, editFiredUser }

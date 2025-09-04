@@ -7,6 +7,7 @@ const FiredUsers = new mongoose.Schema({
     email: {type: String, required: true},
     password: {type: String, required: true},
     role: { type: Number, required: true},
+    reason: {type: String},
     designation: {type: String},
     contact: {type: String},
     team: {type: Number, default: 0},

@@ -12,7 +12,8 @@ const {
   getUserStats,
   getUsersWithoutTeam,
   getUsersByTeamId,
-  getUsersByRole
+  getUsersByRole,
+  editFiredUser
 } = require('../Controllers/UserController');
 
 const router = express.Router();
@@ -36,5 +37,6 @@ router.delete('/deleteUser/:id', deleteUser);
 router.get('/without-team', getUsersWithoutTeam);
 router.get('/team-members/:teamId', getUsersByTeamId);
 router.get('/byRole/:role',getUsersByRole);
+router.put('/editFiredUser/:id', editFiredUser);
 
 module.exports = router;
