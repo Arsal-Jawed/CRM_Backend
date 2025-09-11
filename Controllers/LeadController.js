@@ -669,6 +669,32 @@ const setClosure = async (req, res) => {
   }
 };
 
+// 19. Update Followup
+const updateFollowupDate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { followupDate } = req.body;
+
+    if (!followupDate) {
+      return res.status(400).json({ message: 'followupDate is required' });
+    }
+
+    const lead = await Lead.findByIdAndUpdate(
+      id,
+      { followupDate },
+      { new: true }
+    );
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    res.status(200).json({ message: 'Follow-up date updated successfully', lead });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createLead,
   editLead,
@@ -688,5 +714,6 @@ module.exports = {
   updateNotes,
   checkLeadExistence,
   setClosure,
-  getLeads
+  getLeads,
+  updateFollowupDate
 };

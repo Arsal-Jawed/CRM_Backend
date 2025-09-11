@@ -19,7 +19,8 @@ const {
   updateNotes,
   checkLeadExistence,
   setClosure,
-  getLeads
+  getLeads,
+  updateFollowupDate
 } = require('../Controllers/LeadController');
 
 router.post('/create', createLead);
@@ -41,5 +42,6 @@ router.post('/createClient', createClient);
 router.post('/notes', updateNotes);
 router.post('/check-lead', checkLeadExistence);
 router.put('/setClosure/:id', setClosure);
+router.put('/updateFollowupDate/:id', updateFollowupDate);
 
 module.exports = router;
