@@ -1,5 +1,6 @@
 const Lead = require('../Models/LeadModel');
 const User = require('../Models/UserModel');
+const FiredUsers = require('../Models/FiredUserModel');
 const Rate = require('../Models/RateModel');
 const Call = require('../Models/CallModel');
 const Doc  = require('../Models/DocModel');
@@ -282,28 +283,22 @@ const wonLead = async (req, res) => {
 // 7. Mark Lead as Lost
 const lossLead = async (req, res) => {
   try {
-    const { user } = req.body;
-    const { lead } = await validateLostClosure(req.params.id, user);
-
     const updatedLead = await Lead.findByIdAndUpdate(
-      lead._id,
+      req.params.id,
       { status: 'lost', saleCloseDateTime: new Date() },
       { new: true }
     );
 
-    const notifierUser = await User.findOne({ email: user });
-    const notifier = notifierUser ? `${notifierUser.firstName} ${notifierUser.lastName}` : user;
-    const detail = `Marked lead as *Lost*: ${updatedLead.person_name} from ${updatedLead.business_name}`;
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    if (!updatedLead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
 
     res.status(200).json(updatedLead);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: "Failed to mark lead as lost" });
   }
 };
+
 
 // 8. Get All Leads
 const getAllLeads = async (req, res) => {
@@ -364,7 +359,11 @@ const getLeadsByClosure = async (req, res) => {
 
     const enhancedLeads = await Promise.all(
       leads.map(async (lead) => {
-        const user = await User.findOne({ email: lead.email });
+        let user = await User.findOne({ email: lead.email });
+        if (!user) {
+          user = await FiredUsers.findOne({ email: lead.email });
+        }
+
         const lead_gen = user ? `${user.firstName} ${user.lastName}` : 'Unknown';
 
         return {

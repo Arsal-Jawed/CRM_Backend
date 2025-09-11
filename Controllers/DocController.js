@@ -103,7 +103,6 @@ const uploadMultipleDocs = async (req, res) => {
   }
 };
 
-
 const getAllDocs = async (req, res) => {
   try {
     const docs = await Doc.find().sort({ date: -1 });
