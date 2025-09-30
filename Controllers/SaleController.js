@@ -28,6 +28,7 @@ const updateApplicationStatus = async (req, res) => {
     if (status === 'Submitted') {
       updateFields.submitDate = now;
       updateFields.submitBy = fullName;
+      updateFields.approvalStatus = status;
     } else if (status === 'Approved' || status === 'Rejected') {
       updateFields.approvalStatus = status;
       updateFields.approveDate = now;
@@ -38,6 +39,7 @@ const updateApplicationStatus = async (req, res) => {
     } else if (status === 'Activated') {
       updateFields.activationDate = now;
       updateFields.activatedBy = fullName;
+      updateFields.approvalStatus = status;
     }
 
     const sale = await Sale.findByIdAndUpdate(id, updateFields, { new: true });

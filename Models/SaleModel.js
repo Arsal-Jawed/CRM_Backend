@@ -9,7 +9,7 @@ const saleSchema = new mongoose.Schema({
   submitDate: { type: Date },
   submitBy: { type: String },
 
-  approvalStatus: { type: String, enum: ['Approved', 'Rejected', 'Pending', 'Underwriting', 'Buyback'], default: 'Pending' },
+  approvalStatus: { type: String, enum: ['Activated', 'Approved', 'Submitted' ,'Rejected', 'Pending', 'Underwriting', 'Buyback'], default: 'Pending' },
   approveDate: { type: Date },
   approveBy: { type: String },
 
