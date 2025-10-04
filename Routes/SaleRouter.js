@@ -5,7 +5,7 @@ const {
   updateApplicationStatus,
   updateLeaseStatus,
   updateCreditScore,
-  getSales, editSale, getAllSales
+  getSales, editSale, getAllSales, updateRM
 } = require('../Controllers/SaleController');
 
 router.post('/create', createSale);
@@ -15,5 +15,6 @@ router.put('/credit-score/:id', updateCreditScore);
 router.get('/getSales', getSales);
 router.get('/all', getAllSales);
 router.put('/editSale/:id', editSale);
+router.put('/updateRM/:lead_id', updateRM);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const saleSchema = new mongoose.Schema({
 
   clientId: { type: String, required: true },
+  rm: { type: String, Default: 'Yazan Adnan'},
 
   currentStatus: { type: String, Default:'New'},
 

@@ -147,6 +147,27 @@ const getAllSales = async (req, res) => {
   }
 };
 
+const updateRM = async (req, res) => {
+  try {
+    const { lead_id } = req.params;
+    const { rm } = req.body;
+
+    const sale = await Sale.findOneAndUpdate(
+      { clientId: lead_id },
+      { rm },
+      { new: true }
+    );
+
+    if (!sale) {
+      return res.status(404).json({ message: 'Sale not found with that clientId' });
+    }
+
+    res.status(200).json({ message: 'RM updated successfully', sale });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating RM', error: error.message });
+  }
+};
+
 module.exports = {
   createSale,
   updateApplicationStatus,
@@ -154,5 +175,6 @@ module.exports = {
   updateCreditScore,
   getSales,
   editSale,
-  getAllSales
+  getAllSales,
+  updateRM
 };
