@@ -15,7 +15,7 @@ const leadSchema = new mongoose.Schema({
   legal_address: {type: String},
   followupDate: {type: Date, required: true},
 
-  status: { type: String, default: 'in process' },
+  status: { type: String, default: 'pending' },
   rating: { type: Number, default: 0 },
   ratedBy: { type: String },
   ratingDate: { type: Date },

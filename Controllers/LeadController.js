@@ -695,6 +695,22 @@ const updateFollowupDate = async (req, res) => {
   }
 };
 
+// 20. Approve Lead
+const approveLead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lead = await Lead.findByIdAndUpdate(
+      id,
+      { status: 'in process' },
+      { new: true }
+    );
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+    res.status(200).json({ message: 'Lead approved successfully', lead });
+  } catch (err) {
+    res.status(500).json({ message: 'Error approving lead', error: err.message });
+  }
+};
+
 module.exports = {
   createLead,
   editLead,
@@ -715,5 +731,6 @@ module.exports = {
   checkLeadExistence,
   setClosure,
   getLeads,
-  updateFollowupDate
+  updateFollowupDate,
+  approveLead
 };
