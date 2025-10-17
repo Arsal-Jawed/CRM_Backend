@@ -25,7 +25,6 @@ const recordRouter = require('./Routes/RecordRouter.js');
 const {createNotificationTable} = require('./SQL/Notification.js');
 const {createScheduleTable} = require('./SQL/Schedules.js');
 const {createAttendanceTable} = require('./SQL/Attendance.js');
-const {createRecordTable} = require('./SQL/Record.js');
 
 require('./Modules/Cron.js');
 
@@ -39,7 +38,6 @@ const server = http.createServer(app);
 createNotificationTable();
 createScheduleTable();
 createAttendanceTable();
-createRecordTable();
 
 app.use('/users',userRoutes);
 app.use('/leads',leadRoutes);
