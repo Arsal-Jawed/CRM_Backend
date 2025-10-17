@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Upload directory - yahan MP3 files save hongi
-const uploadDir = 'D:/AREX Projects/CRM/Client/crm/public/Records';
+const uploadDir = 'D:/CRM/Client/CRM_Frontend/public/Records';
 
 // Directory create karein agar nahi hai
 if (!fs.existsSync(uploadDir)) {

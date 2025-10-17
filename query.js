@@ -1,29 +1,30 @@
 const mongoose = require('mongoose');
-const Sale = require('./Models/SaleModel');
+const Lead = require('./Models/LeadModel');
 
-async function seedSales() {
+async function updateLeads() {
   try {
     await mongoose.connect('mongodb+srv://callsid:ILoveCellestial@cluster0.8atyypf.mongodb.net/crm?retryWrites=true&w=majority&appName=CRM', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
 
-    const sales = [
+    // Dates are stored as strings, so we'll just match these exact values
+    const dateRange = ["10/10/2025", "10/11/2025", "10/12/2025", "10/13/2025", "10/14/2025"];
+
+    const result = await Lead.updateMany(
       {
-        clientId: "38",
-        currentStatus: "New",
-        approvalStatus: "Pending",
-        leaseApprovalStatus: "Pending"
-      }
-    ];
+        date: { $in: dateRange },
+        closure1: "not specified",
+        closure2: "not specified"
+      },
+      { $set: { status: "pending" } }
+    );
 
-    const result = await Sale.insertMany(sales);
-    console.log("Inserted sales:", result);
-
-    mongoose.connection.close();
+    console.log(`✅ Updated ${result.modifiedCount} leads to status: pending`);
+    await mongoose.connection.close();
   } catch (err) {
-    console.error("Error inserting sales:", err);
+    console.error("❌ Error updating leads:", err);
   }
 }
 
-seedSales();
+updateLeads();
