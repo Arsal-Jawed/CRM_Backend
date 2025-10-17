@@ -33,6 +33,7 @@ const leadSchema = new mongoose.Schema({
   saleType: { type: String, enum: ['lease', 'rent', 'purchase'], default: 'purchase' },
   saleCloseDateTime: { type: Date },
   notes: { type: String },
+  QARemarks: {type: String, default: 'No Remarks'},
 
   businessRole: { type: String },
   established: { type: Date },

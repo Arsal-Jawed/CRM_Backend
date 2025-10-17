@@ -14,69 +14,57 @@ const db = require('../db');
 // 1. Create Lead
 const createLead = async (req, res) => {
   try {
-    const { personal_email, business_name, business_email } = req.body;
+    const { personal_email, business_name, business_email, email } = req.body
 
-    const conditions = [
-      { personal_email },
-      { business_name }
-    ];
-    if (business_email) conditions.push({ business_email });
+    const conditions = [{ personal_email }, { business_name }]
+    if (business_email) conditions.push({ business_email })
 
-    const existingLead = await Lead.findOne({ $or: conditions });
-    if (existingLead) {
-      return res.status(400).json({ error: 'Lead already exists' });
-    }
+    const existingLead = await Lead.findOne({ $or: conditions })
+    if (existingLead) return res.status(400).json({ error: 'Lead already exists' })
 
-    const newLead = new Lead(req.body);
-    const savedLead = await newLead.save();
+    const user = await User.findOne({ email })
 
-    const { email, person_name, business_name: bName } = savedLead;
-    const user = await User.findOne({ email });
+    const newLead = new Lead(req.body)
+    if (user) newLead.status = user.role === 3 ? 'pending' : 'in process'
 
-    const followupDate = new Date();
-    followupDate.setDate(followupDate.getDate() + 2);
+    const savedLead = await newLead.save()
 
-    const scheduleDetails = `Call to ${person_name || 'Unknown Client'} of ${bName || 'Unknown Business'} for FollowUp`;
+    const { person_name, business_name: bName } = savedLead
+
+    const followupDate = new Date()
+    followupDate.setDate(followupDate.getDate() + 2)
+    const scheduleDetails = `Call to ${person_name || 'Unknown Client'} of ${bName || 'Unknown Business'} for FollowUp`
 
     if (user && (user.role === 1 || user.role === 2)) {
-      savedLead.closure1 = user.email;
-
-      // Agar role === 2 hai, to team leader ka email closure2 me dalna hai
+      savedLead.closure1 = user.email
       if (user.role === 2 && user.team) {
-        const teamData = await Team.findOne({ teamId: user.team });
-
-        if (teamData && teamData.TeamLeader) {
-          const teamLeader = await User.findById(teamData.TeamLeader);
-          if (teamLeader) {
-            savedLead.closure2 = teamLeader.email;
-          }
+        const teamData = await Team.findOne({ teamId: user.team })
+        if (teamData?.TeamLeader) {
+          const teamLeader = await User.findById(teamData.TeamLeader)
+          if (teamLeader) savedLead.closure2 = teamLeader.email
         }
       }
-
-      await savedLead.save();
-
-      const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
-      db.query(scheduleQuery, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, followupDate.toISOString().split('T')[0]]);
-      db.query(scheduleQuery, [email, scheduleDetails, followupDate.toISOString().split('T')[0]]);
+      await savedLead.save()
+      const dateStr = followupDate.toISOString().split('T')[0]
+      db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, dateStr])
+      db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, [email, scheduleDetails, dateStr])
     }
 
     if (user) {
-      const notifier = `${user.firstName} ${user.lastName}`;
-      const detail = `Created a new lead: ${person_name} from ${bName}`;
-      const notifyQuery = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-      db.query(notifyQuery, [notifier, detail]);
+      const notifier = `${user.firstName} ${user.lastName}`
+      const detail = `Created a new lead: ${person_name} from ${bName}`
+      db.query(`INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`, [notifier, detail])
     }
 
-    // Default schedule creation
-    const scheduleQuery = `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`;
-    db.query(scheduleQuery, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, followupDate.toISOString().split('T')[0]]);
+    const dateStr = followupDate.toISOString().split('T')[0]
+    db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, dateStr])
 
-    res.status(201).json(savedLead);
+    res.status(201).json(savedLead)
   } catch (err) {
-    console.error('Error creating lead:', err);
-    res.status(500).json({ error: err.message || 'Failed to create lead' });
+    console.error('Error creating lead:', err)
+    res.status(500).json({ error: err.message || 'Failed to create lead' })
   }
-};
+}
 
 // 2. Edit Lead
 const editLead = async (req, res) => {
@@ -299,25 +287,43 @@ const lossLead = async (req, res) => {
   }
 };
 
-
-// 8. Get All Leads
+// 8. Get All Leads with Records
 const getAllLeads = async (req, res) => {
+  
   try {
     const leads = await Lead.find({});
-
     const enrichedLeads = await Promise.all(
       leads.map(async (lead) => {
         const user = await User.findOne({ email: lead.email });
         const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User';
-        return { ...lead.toObject(), userName: fullName };
+        const record = await new Promise((resolve, reject) => {
+          const query = 'SELECT * FROM record WHERE lead_id = ? LIMIT 1';
+          db.query(query, [lead.lead_id], (err, results) => {
+            if (err) {
+              console.error(`Error fetching record for lead_id ${lead.lead_id}:`, err);
+              resolve(null);
+            } else {
+              resolve(results[0] || null);
+            }
+          });
+        });
+        return {
+          ...lead.toObject(),
+          userName: fullName,
+          record_id: record ? record.record_id : null,
+          file_path: record ? record.file_path : null
+        };
       })
     );
 
     res.status(200).json(enrichedLeads);
   } catch (err) {
+    console.error('Error in getAllLeads:', err);
     res.status(500).json({ error: 'Failed to fetch leads' });
   }
 };
+
+module.exports = { getAllLeads };
 
 // 8.1. Get All Leads
 const getLeads = async (req, res) => {
@@ -698,18 +704,30 @@ const updateFollowupDate = async (req, res) => {
 // 20. Approve Lead
 const approveLead = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params
+    const { QARemarks, decision } = req.body
+
+    const status = decision === 'approve' ? 'in process' : 'rejected'
+
     const lead = await Lead.findByIdAndUpdate(
       id,
-      { status: 'in process' },
+      {
+        status,
+        QARemarks: QARemarks || 'No Remarks'
+      },
       { new: true }
-    );
-    if (!lead) return res.status(404).json({ message: 'Lead not found' });
-    res.status(200).json({ message: 'Lead approved successfully', lead });
+    )
+
+    if (!lead) return res.status(404).json({ message: 'Lead not found' })
+    res.status(200).json({
+      message: `Lead ${status === 'in process' ? 'approved' : 'disapproved'} successfully`,
+      lead
+    })
   } catch (err) {
-    res.status(500).json({ message: 'Error approving lead', error: err.message });
+    res.status(500).json({ message: 'Error updating lead', error: err.message })
   }
-};
+}
+
 
 module.exports = {
   createLead,

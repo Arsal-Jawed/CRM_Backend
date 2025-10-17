@@ -20,10 +20,12 @@ const ticketRoutes = require('./Routes/TicketRouter.js');
 const equipmentRoutes = require('./Routes/EquipmentRouter.js');
 const dataRoutes = require('./Routes/DataRouter.js');
 const attendanceRoutes = require('./Routes/AttendanceRouter.js');
+const recordRouter = require('./Routes/RecordRouter.js');
 
 const {createNotificationTable} = require('./SQL/Notification.js');
 const {createScheduleTable} = require('./SQL/Schedules.js');
 const {createAttendanceTable} = require('./SQL/Attendance.js');
+const {createRecordTable} = require('./SQL/Record.js');
 
 require('./Modules/Cron.js');
 
@@ -37,6 +39,7 @@ const server = http.createServer(app);
 createNotificationTable();
 createScheduleTable();
 createAttendanceTable();
+createRecordTable();
 
 app.use('/users',userRoutes);
 app.use('/leads',leadRoutes);
@@ -52,6 +55,7 @@ app.use('/tickets',ticketRoutes);
 app.use('/equipments',equipmentRoutes);
 app.use('/data',dataRoutes);
 app.use('/attendance',attendanceRoutes);
+app.use('/records',recordRouter);
   
 connectDB();
 
