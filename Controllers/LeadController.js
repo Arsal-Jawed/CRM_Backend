@@ -7,6 +7,7 @@ const Doc  = require('../Models/DocModel');
 const Sale = require('../Models/SaleModel');
 const Team = require('../Models/TeamModel');
 const Equipment = require('../Models/Equipment');
+const Record = require('../Models/RecordModel');
 const { sendMail, getLeadAssignmentTemplate } = require('../Modules/Nodemailer');
 
 const db = require('../db');
@@ -289,29 +290,23 @@ const lossLead = async (req, res) => {
 
 // 8. Get All Leads with Records
 const getAllLeads = async (req, res) => {
-  
   try {
     const leads = await Lead.find({});
+
     const enrichedLeads = await Promise.all(
       leads.map(async (lead) => {
+        // Fetch related user
         const user = await User.findOne({ email: lead.email });
         const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown User';
-        const record = await new Promise((resolve, reject) => {
-          const query = 'SELECT * FROM record WHERE lead_id = ? LIMIT 1';
-          db.query(query, [lead.lead_id], (err, results) => {
-            if (err) {
-              console.error(`Error fetching record for lead_id ${lead.lead_id}:`, err);
-              resolve(null);
-            } else {
-              resolve(results[0] || null);
-            }
-          });
-        });
+
+        // Fetch related record from MongoDB
+        const record = await Record.findOne({ lead_id: lead.lead_id });
+
         return {
           ...lead.toObject(),
           userName: fullName,
-          record_id: record ? record.record_id : null,
-          file_path: record ? record.file_path : null
+          record_id: record ? record._id : null,
+          file_path: record ? record.file_path : null,
         };
       })
     );
@@ -322,6 +317,7 @@ const getAllLeads = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch leads' });
   }
 };
+
 
 module.exports = { getAllLeads };
 
