@@ -8,11 +8,12 @@ const markAttendance = async (req, res) => {
   const currentDate = now.toISOString().slice(0, 10);
   const checkIn = now.toTimeString().slice(0, 8);
 
+  // Attendance Window (PM)
   const start = new Date();
-  start.setHours(9, 0, 0);
+  start.setHours(21, 0, 0);   // 9:00 PM
 
   const end = new Date();
-  end.setHours(11, 59, 0);
+  end.setHours(23, 59, 0);    // 11:59 PM
 
   if (now < start || now > end) {
     return res.status(200).json({ message: 'Attendance window closed' });
@@ -20,16 +21,16 @@ const markAttendance = async (req, res) => {
 
   try {
     const user = await User.findOne({ email }).lean();
-
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Late time (PM)
     const late = new Date();
     if (user.role === 1) {
-      late.setHours(10, 20, 0);
+      late.setHours(22, 20, 0);   // 10:20 PM
     } else {
-      late.setHours(9, 40, 0);
+      late.setHours(21, 40, 0);   // 9:40 PM
     }
 
     const status = now < late ? 'Present' : 'Late';
@@ -48,7 +49,8 @@ const markAttendance = async (req, res) => {
 
       const insertQuery = `
         INSERT INTO attendance (user_email, date, status, check_in_time, remarks)
-        VALUES (?, ?, ?, ?, ?)`;
+        VALUES (?, ?, ?, ?, ?)
+      `;
 
       db.query(insertQuery, [email, currentDate, status, checkIn, remarks], (err3) => {
         if (err3) {
