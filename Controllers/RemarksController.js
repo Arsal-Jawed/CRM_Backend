@@ -1,5 +1,6 @@
 const Remark = require('../Models/RemarksModel');
 const User = require('../Models/UserModel');
+const Notification = require('../Models/NotificationModel');
 
 const addRemark = async (req, res) => {
   try {
@@ -17,10 +18,15 @@ const addRemark = async (req, res) => {
     const leadGenName = `${leadGenUser.firstName} ${leadGenUser.lastName}`;
     const detail = `${notifier} gave remarks about ${leadGenName}`;
 
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier,
+        detail,
+        date: new Date()
+      });
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(201).json(newRemark);
   } catch (err) {

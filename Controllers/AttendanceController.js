@@ -1,12 +1,13 @@
-const db = require('../db');
+const Attendance = require('../Models/AttendanceModel');
+const Notification = require('../Models/NotificationModel');
 const moment = require('moment');
 const User = require('../Models/UserModel');
 
 const markAttendance = async (req, res) => {
   const { email, remarks = '' } = req.body;
   const now = new Date();
-  const currentDate = now.toISOString().slice(0, 10);
-  const checkIn = now.toTimeString().slice(0, 8);
+  const currentDate = new Date(now);
+  currentDate.setHours(0, 0, 0, 0);
 
   // Attendance Window (PM)
   const start = new Date();
@@ -34,66 +35,69 @@ const markAttendance = async (req, res) => {
     }
 
     const status = now < late ? 'Present' : 'Late';
+    const checkIn = now.toTimeString().slice(0, 8);
 
-    const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
-
-    db.query(checkQuery, [email, currentDate], (err2, rows) => {
-      if (err2) {
-        console.error('Database error:', err2);
-        return res.status(500).json({ message: 'Database error' });
+    // Check if attendance already exists for today
+    const nextDay = new Date(currentDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    const existingAttendance = await Attendance.findOne({
+      user_email: email,
+      date: {
+        $gte: currentDate,
+        $lt: nextDay
       }
-
-      if (rows.length > 0) {
-        return res.status(400).json({ message: 'Attendance already marked for today' });
-      }
-
-      const insertQuery = `
-        INSERT INTO attendance (user_email, date, status, check_in_time, remarks)
-        VALUES (?, ?, ?, ?, ?)
-      `;
-
-      db.query(insertQuery, [email, currentDate, status, checkIn, remarks], (err3) => {
-        if (err3) {
-          console.error('Insert error:', err3);
-          return res.status(500).json({ message: 'Failed to mark attendance' });
-        }
-
-        return res.status(200).json({ message: `Attendance marked as ${status}` });
-      });
     });
+
+    if (existingAttendance) {
+      return res.status(400).json({ message: 'Attendance already marked for today' });
+    }
+
+    // Create new attendance record
+    await Attendance.create({
+      user_email: email,
+      date: currentDate,
+      status,
+      check_in_time: checkIn,
+      remarks
+    });
+
+    return res.status(200).json({ message: `Attendance marked as ${status}` });
   } catch (err) {
-    console.error('Mongoose error:', err);
-    return res.status(500).json({ message: 'Error fetching user role' });
+    console.error('Error:', err);
+    return res.status(500).json({ message: 'Error marking attendance' });
   }
 };
 
-const markCheckout = (req, res) => {
+const markCheckout = async (req, res) => {
   const { email } = req.body;
-  const currentDate = new Date().toISOString().slice(0, 10);
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  const nextDay = new Date(currentDate);
+  nextDay.setDate(nextDay.getDate() + 1);
   const checkoutTime = new Date().toTimeString().slice(0, 8);
 
-  const checkQuery = `
-    SELECT * FROM attendance 
-    WHERE user_email = ? AND date = ?`;
+  try {
+    const attendance = await Attendance.findOne({
+      user_email: email,
+      date: {
+        $gte: currentDate,
+        $lt: nextDay
+      }
+    });
 
-  db.query(checkQuery, [email, currentDate], (err, results) => {
-    if (err) return res.status(500).json({ message: 'Database error during check' });
-
-    if (results.length === 0) {
+    if (!attendance) {
       return res.status(400).json({ message: 'No attendance record found for today' });
     }
 
-    const updateQuery = `
-      UPDATE attendance
-      SET check_out_time = ?
-      WHERE user_email = ? AND date = ?`;
+    attendance.check_out_time = checkoutTime;
+    await attendance.save();
 
-    db.query(updateQuery, [checkoutTime, email, currentDate], (err, result) => {
-      if (err) return res.status(500).json({ message: 'Failed to mark checkout' });
-
-      return res.status(200).json({ message: 'Checkout marked successfully' });
-    });
-  });
+    return res.status(200).json({ message: 'Checkout marked successfully' });
+  } catch (err) {
+    console.error('Error:', err);
+    return res.status(500).json({ message: 'Failed to mark checkout' });
+  }
 };
 
 const getMonthlyAttendance = async (req, res) => {
@@ -102,56 +106,57 @@ const getMonthlyAttendance = async (req, res) => {
     const targetMonth = month || moment().format('YYYY-MM');
     const users = await User.find({}, 'firstName lastName email role').sort({ role: 1 }).lean();
 
-    const query = `
-      SELECT * FROM attendance 
-      WHERE DATE_FORMAT(date, '%Y-%m') = ?
-    `;
+    const startDate = moment(targetMonth, 'YYYY-MM').startOf('month').toDate();
+    const endDate = moment(targetMonth, 'YYYY-MM').endOf('month').toDate();
 
-    db.query(query, [targetMonth], (err, results) => {
-      if (err) return res.status(500).json({ error: 'DB error' });
-      
-      const attendanceMap = {};
-      const checkInMap = {};
-      const remarksMap = {};   // ✅ Added remarks map
-      
-      results.forEach(entry => {
-        const email = entry.user_email;
-        const day = moment(entry.date).date();
+    const attendanceRecords = await Attendance.find({
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).lean();
 
-        if (!attendanceMap[email]) {
-          attendanceMap[email] = {};
-          checkInMap[email] = {};
-          remarksMap[email] = {};  // ✅ Initialize remarks map
-        }
+    const attendanceMap = {};
+    const checkInMap = {};
+    const remarksMap = {};
 
-        attendanceMap[email][day] = entry.status[0];
-        checkInMap[email][day] = entry.check_in_time || null;
-        remarksMap[email][day] = entry.remarks || null;  // ✅ Store remarks
-      });
+    attendanceRecords.forEach(entry => {
+      const email = entry.user_email;
+      const day = moment(entry.date).date();
 
-      const totalDays = moment(targetMonth, 'YYYY-MM').daysInMonth();
-      const response = users.map(user => {
-        const daily = {};
-        const checkInTimes = {};
-        const dailyRemarks = {};  // ✅ New object to gather remarks
+      if (!attendanceMap[email]) {
+        attendanceMap[email] = {};
+        checkInMap[email] = {};
+        remarksMap[email] = {};
+      }
 
-        for (let d = 1; d <= totalDays; d++) {
-          daily[d] = attendanceMap[user.email]?.[d] || '-';
-          checkInTimes[d] = checkInMap[user.email]?.[d] || null;
-          dailyRemarks[d] = remarksMap[user.email]?.[d] || null;  // ✅ Add remarks per day
-        }
-
-        return {
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email,
-          attendance: daily,
-          checkInTimes,
-          remarks: dailyRemarks   // ✅ Include in final response
-        };
-      });
-
-      res.json(response);
+      attendanceMap[email][day] = entry.status[0];
+      checkInMap[email][day] = entry.check_in_time || null;
+      remarksMap[email][day] = entry.remarks || null;
     });
+
+    const totalDays = moment(targetMonth, 'YYYY-MM').daysInMonth();
+    const response = users.map(user => {
+      const daily = {};
+      const checkInTimes = {};
+      const dailyRemarks = {};
+
+      for (let d = 1; d <= totalDays; d++) {
+        daily[d] = attendanceMap[user.email]?.[d] || '-';
+        checkInTimes[d] = checkInMap[user.email]?.[d] || null;
+        dailyRemarks[d] = remarksMap[user.email]?.[d] || null;
+      }
+
+      return {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        attendance: daily,
+        checkInTimes,
+        remarks: dailyRemarks
+      };
+    });
+
+    res.json(response);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -159,60 +164,64 @@ const getMonthlyAttendance = async (req, res) => {
 };
 
 async function insertNotification(managerEmail, detail) {
-  const managerUser = await User.findOne({ email: managerEmail }, 'firstName lastName').lean();
-  if (!managerUser) return;
-  const notifierName = `${managerUser.firstName} ${managerUser.lastName}`;
-  const now = moment().format('YYYY-MM-DD HH:mm:ss');
-  return new Promise((resolve, reject) => {
-    db.query(
-      `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, ?)`,
-      [notifierName, detail, now],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      }
-    );
-  });
+  try {
+    const managerUser = await User.findOne({ email: managerEmail }, 'firstName lastName').lean();
+    if (!managerUser) return;
+    const notifierName = `${managerUser.firstName} ${managerUser.lastName}`;
+    
+    await Notification.create({
+      notifier: notifierName,
+      detail,
+      date: new Date()
+    });
+  } catch (err) {
+    console.error('Error inserting notification:', err);
+  }
 }
 
-const markHalfDay = (req, res) => {
+const markHalfDay = async (req, res) => {
   const { email, remarks = '', manager } = req.body;
-  const currentDate = new Date().toISOString().slice(0, 10);
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  const nextDay = new Date(currentDate);
+  nextDay.setDate(nextDay.getDate() + 1);
 
-  const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
-
-  db.query(checkQuery, [email, currentDate], (err, rows) => {
-    if (err) return res.status(500).json({ message: 'Database error' });
+  try {
+    const attendance = await Attendance.findOne({
+      user_email: email,
+      date: {
+        $gte: currentDate,
+        $lt: nextDay
+      }
+    });
 
     const finalize = async (msg) => {
       await insertNotification(manager, `${email} marked Half Day by manager`);
       return res.status(200).json({ message: msg });
     };
 
-    if (rows.length > 0) {
-      const updateQuery = `
-        UPDATE attendance 
-        SET status = 'Half', remarks = ?
-        WHERE user_email = ? AND date = ?`;
-
-      db.query(updateQuery, [remarks, email, currentDate], async (err2) => {
-        if (err2) return res.status(500).json({ message: 'Failed to update status to Halfday' });
-        await finalize('Attendance updated to Halfday');
-      });
+    if (attendance) {
+      attendance.status = 'Half';
+      attendance.remarks = remarks;
+      await attendance.save();
+      await finalize('Attendance updated to Halfday');
     } else {
-      const insertQuery = `
-        INSERT INTO attendance (user_email, date, status, remarks, check_in_time)
-        VALUES (?, ?, 'Half', ?, ?)`;
-
-      db.query(insertQuery, [email, currentDate, remarks, '11:59:30'], async (err2) => {
-        if (err2) return res.status(500).json({ message: 'Failed to mark Halfday' });
-        await finalize('Halfday marked successfully');
+      await Attendance.create({
+        user_email: email,
+        date: currentDate,
+        status: 'Half',
+        remarks,
+        check_in_time: '11:59:30'
       });
+      await finalize('Halfday marked successfully');
     }
-  });
+  } catch (err) {
+    console.error('Error:', err);
+    return res.status(500).json({ message: 'Failed to mark Halfday' });
+  }
 };
 
-const markLeave = (req, res) => {
+const markLeave = async (req, res) => {
   const { email, fromDate, toDate, remarks = '', manager } = req.body;
 
   if (!fromDate || !toDate || !email) {
@@ -226,113 +235,89 @@ const markLeave = (req, res) => {
     return res.status(400).json({ message: 'Invalid date range' });
   }
 
-  const dates = [];
-  let current = startDate.clone();
+  try {
+    const dates = [];
+    let current = startDate.clone();
 
-  while (current.isSameOrBefore(endDate)) {
-    dates.push(current.format('YYYY-MM-DD'));
-    current.add(1, 'days');
-  }
+    while (current.isSameOrBefore(endDate)) {
+      dates.push(current.toDate());
+      current.add(1, 'days');
+    }
 
-  let completed = 0;
-  let hasError = false;
+    const operations = dates.map(date => {
+      const dateStart = new Date(date);
+      dateStart.setHours(0, 0, 0, 0);
+      const dateEnd = new Date(date);
+      dateEnd.setHours(23, 59, 59, 999);
 
-  dates.forEach(date => {
-    const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
-
-    db.query(checkQuery, [email, date], (err, rows) => {
-      if (err) {
-        hasError = true;
-        return;
-      }
-
-      const finalize = async () => {
-        completed++;
-        if (completed === dates.length) {
-          await insertNotification(manager, `${email} marked Leave (${fromDate} to ${toDate}) by manager`);
-          if (hasError) return res.status(500).json({ message: 'Some records failed to process' });
-          return res.status(200).json({ message: 'Leave marked successfully on given dates' });
+      return {
+        updateOne: {
+          filter: {
+            user_email: email,
+            date: {
+              $gte: dateStart,
+              $lt: new Date(dateEnd.getTime() + 1)
+            }
+          },
+          update: {
+            $set: {
+              user_email: email,
+              date: dateStart,
+              status: 'Leave',
+              remarks
+            }
+          },
+          upsert: true
         }
       };
-
-      if (rows.length > 0) {
-        const updateQuery = `
-          UPDATE attendance
-          SET status = 'Leave', remarks = ?
-          WHERE user_email = ? AND date = ?`;
-
-        db.query(updateQuery, [remarks, email, date], async (err2) => {
-          if (err2) hasError = true;
-          await finalize();
-        });
-      } else {
-        const insertQuery = `
-          INSERT INTO attendance (user_email, date, status, remarks)
-          VALUES (?, ?, 'Leave', ?)`; 
-
-        db.query(insertQuery, [email, date, remarks], async (err2) => {
-          if (err2) hasError = true;
-          await finalize();
-        });
-      }
     });
-  });
+
+    await Attendance.bulkWrite(operations);
+    await insertNotification(manager, `${email} marked Leave (${fromDate} to ${toDate}) by manager`);
+    return res.status(200).json({ message: 'Leave marked successfully on given dates' });
+  } catch (err) {
+    console.error('Error:', err);
+    return res.status(500).json({ message: 'Failed to mark leave' });
+  }
 };
 
 const markAllWithStatus = async (req, res, status) => {
   const { date, remarks = '', manager } = req.body;
-  const targetDate = date || moment().format('YYYY-MM-DD');
+  const targetDate = date ? moment(date).toDate() : moment().toDate();
+  targetDate.setHours(0, 0, 0, 0);
+  const nextDay = new Date(targetDate);
+  nextDay.setDate(nextDay.getDate() + 1);
 
   try {
     const users = await User.find({}, 'email').lean();
     const emails = users.map(u => u.email);
 
-    let completed = 0;
-    let hasError = false;
-
-    emails.forEach(email => {
-      const checkQuery = `SELECT * FROM attendance WHERE user_email = ? AND date = ?`;
-
-      db.query(checkQuery, [email, targetDate], (err, rows) => {
-        if (err) {
-          hasError = true;
-          completed++;
-          return;
-        }
-
-        const finalize = async () => {
-          completed++;
-          if (completed === emails.length) {
-            await insertNotification(manager, `All users marked as ${status} by manager`);
-            if (hasError) return res.status(500).json({ message: `Some records failed to process as ${status}` });
-            return res.status(200).json({ message: `All users marked as ${status}` });
+    const operations = emails.map(email => ({
+      updateOne: {
+        filter: {
+          user_email: email,
+          date: {
+            $gte: targetDate,
+            $lt: nextDay
           }
-        };
+        },
+        update: {
+          $set: {
+            user_email: email,
+            date: targetDate,
+            status,
+            remarks
+          }
+        },
+        upsert: true
+      }
+    }));
 
-        if (rows.length > 0) {
-          const updateQuery = `
-            UPDATE attendance 
-            SET status = ?, remarks = ?
-            WHERE user_email = ? AND date = ?`;
-
-          db.query(updateQuery, [status, remarks, email, targetDate], async (err2) => {
-            if (err2) hasError = true;
-            await finalize();
-          });
-        } else {
-          const insertQuery = `
-            INSERT INTO attendance (user_email, date, status, remarks)
-            VALUES (?, ?, ?, ?)
-          `;
-
-          db.query(insertQuery, [email, targetDate, status, remarks], async (err2) => {
-            if (err2) hasError = true;
-            await finalize();
-          });
-        }
-      });
-    });
+    await Attendance.bulkWrite(operations);
+    await insertNotification(manager, `All users marked as ${status} by manager`);
+    return res.status(200).json({ message: `All users marked as ${status}` });
   } catch (err) {
+    console.error('Error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };

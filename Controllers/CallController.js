@@ -1,5 +1,5 @@
 const Call = require('../Models/CallModel');
-const db = require('../db');
+const Notification = require('../Models/NotificationModel');
 
 const createCall = async (req, res) => {
   try {
@@ -8,10 +8,15 @@ const createCall = async (req, res) => {
     await newCall.save();
 
     const detail = `Scheduled a call on ${date} with remarks: ${remarks}`;
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [caller, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier: caller,
+        detail,
+        date: new Date()
+      });
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(201).json(newCall);
   } catch (err) {
@@ -87,10 +92,15 @@ const editRemarks = async (req, res) => {
     );
 
     const detail = `Updated call remarks to: ${remarks}`;
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [call.caller, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier: call.caller,
+        detail,
+        date: new Date()
+      });
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(200).json(updatedCall);
   } catch (err) {

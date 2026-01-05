@@ -1,16 +1,16 @@
-const db = require('../db');
+const Notification = require('../Models/NotificationModel');
 
-const getAllNotifications = (req, res) => {
-  const query = 'SELECT * FROM notification ORDER BY date DESC';
+const getAllNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find()
+      .sort({ date: -1 })
+      .lean();
 
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching notifications:', err);
-      return res.status(500).json({ error: 'Failed to fetch notifications' });
-    }
-
-    res.json(results);
-  });
+    res.json(notifications);
+  } catch (err) {
+    console.error('Error fetching notifications:', err);
+    return res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
 };
 
 module.exports = { getAllNotifications };

@@ -1,5 +1,5 @@
 const Data = require('../Models/DataModel');
-const db = require('../db');
+const Schedule = require('../Models/ScheduleModel');
 const Sale = require("../Models/SaleModel");
 const User = require("../Models/UserModel");
 const Ticket = require("../Models/TicketModel");
@@ -72,15 +72,19 @@ const deleteData = async (req, res) => {
 const createSchedule = async (req, res) => {
   try {
     const { scheduler, details, schedule_date, visibility = 'private' } = req.body;
-    const query = `
-      INSERT INTO schedules (scheduler, details, schedule_date, visibility)
-      VALUES (?, ?, ?, ?)
-    `;
-    db.query(query, [scheduler, details, schedule_date, visibility], (err, result) => {
-      if (err) return res.status(500).json({ error: 'Failed to create schedule' });
-      res.json({ message: 'Schedule created', scheduleId: result.insertId });
+    const scheduleDate = new Date(schedule_date)
+    scheduleDate.setHours(0, 0, 0, 0)
+    
+    const schedule = await Schedule.create({
+      scheduler,
+      details,
+      schedule_date: scheduleDate,
+      visibility
     });
+    
+    res.json({ message: 'Schedule created', scheduleId: schedule._id });
   } catch (err) {
+    console.error('Error creating schedule:', err);
     res.status(500).json({ error: 'Failed to create schedule' });
   }
 };

@@ -1,10 +1,11 @@
-const db = require('../db');
+const Schedule = require('../Models/ScheduleModel');
+const Notification = require('../Models/NotificationModel');
 const User = require('../Models/UserModel');
 
 // 1. Create Schedule
 const createSchedule = async (req, res) => {
   const { scheduler, details, schedule_date, visibility = 'private' } = req.body;
-  const set_date = new Date().toISOString().split('T')[0];
+  const set_date = new Date();
 
   try {
     const user = await User.findOne({ email: scheduler });
@@ -13,22 +14,27 @@ const createSchedule = async (req, res) => {
     const notifier = `${user.firstName} ${user.lastName}`;
     const notificationDetail = `Created a schedule: ${details}`;
     const notificationDate = new Date();
-    const scheduleQuery = `
-      INSERT INTO schedules (scheduler, details, set_date, schedule_date, visibility)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-    db.query(scheduleQuery, [scheduler, details, set_date, schedule_date, visibility], (err, result) => {
-      if (err) return res.status(500).json({ error: 'Failed to create schedule' });
-      const notifQuery = `
-        INSERT INTO notification (notifier, detail, date)
-        VALUES (?, ?, ?)
-      `;
-      db.query(notifQuery, [notifier, notificationDetail, notificationDate], (notifErr) => {
-        if (notifErr) console.error('Notification error:', notifErr);
-      });
 
-      res.status(201).json({ message: 'Schedule created successfully', id: result.insertId });
+    const schedule = await Schedule.create({
+      scheduler,
+      details,
+      set_date,
+      schedule_date: new Date(schedule_date),
+      visibility
     });
+
+    // Create notification
+    try {
+      await Notification.create({
+        notifier,
+        detail: notificationDetail,
+        date: notificationDate
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+    }
+
+    res.status(201).json({ message: 'Schedule created successfully', id: schedule._id });
   } catch (err) {
     console.error('Server error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -36,129 +42,182 @@ const createSchedule = async (req, res) => {
 };
 
 // 2. Get all Schedules by Scheduler
-const getSchedulesByScheduler = (req, res) => {
+const getSchedulesByScheduler = async (req, res) => {
   const { scheduler } = req.params;
- console.log(scheduler);
-  const query = `SELECT * FROM schedules WHERE scheduler = ?`;
-  db.query(query, [scheduler], (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Failed to fetch schedules' });
-    res.status(200).json(rows);
-  });
+  
+  try {
+    const schedules = await Schedule.find({ scheduler })
+      .sort({ schedule_date: 1 })
+      .lean();
+    
+    res.status(200).json(schedules);
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to fetch schedules' });
+  }
 };
 
 // 3. Get all Public Schedules
-const getPublicSchedules = (req, res) => {
+const getPublicSchedules = async (req, res) => {
   const email = req.query.email;
-  const query = `SELECT * FROM schedules WHERE visibility = 'public' OR scheduler = ?`;
 
-  db.query(query, [email], (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Failed to fetch schedules' });
-    res.status(200).json(rows);
-  });
+  try {
+    const schedules = await Schedule.find({
+      $or: [
+        { visibility: 'public' },
+        { scheduler: email }
+      ]
+    })
+      .sort({ schedule_date: 1 })
+      .lean();
+
+    res.status(200).json(schedules);
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to fetch schedules' });
+  }
 };
 
 // 4. Mark Schedule as Public
-const markSchedulePublic = (req, res) => {
+const markSchedulePublic = async (req, res) => {
   const { id } = req.params;
 
-  const query = `UPDATE schedules SET visibility = 'public' WHERE id = ?`;
-  db.query(query, [id], (err) => {
-    if (err) return res.status(500).json({ error: 'Failed to mark as public' });
+  try {
+    const schedule = await Schedule.findByIdAndUpdate(
+      id,
+      { visibility: 'public' },
+      { new: true }
+    );
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+
     res.status(200).json({ message: 'Schedule marked as public' });
-  });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to mark as public' });
+  }
 };
 
 // 5. Delete a Schedule
-const deleteSchedule = (req, res) => {
+const deleteSchedule = async (req, res) => {
   const { id } = req.params;
 
-  const query = `DELETE FROM schedules WHERE id = ?`;
-  db.query(query, [id], (err) => {
-    if (err) return res.status(500).json({ error: 'Failed to delete schedule' });
+  try {
+    const schedule = await Schedule.findByIdAndDelete(id);
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+
     res.status(200).json({ message: 'Schedule deleted successfully' });
-  });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to delete schedule' });
+  }
 };
 
 // 6. Edit Schedule
-const editSchedule = (req, res) => {
+const editSchedule = async (req, res) => {
   const { id } = req.params;
   const { details, schedule_date, visibility } = req.body;
 
-  const query = `
-    UPDATE schedules 
-    SET details = ?, schedule_date = ?, visibility = ? 
-    WHERE id = ?
-  `;
-  db.query(query, [details, schedule_date, visibility, id], (err) => {
-    if (err) return res.status(500).json({ error: 'Failed to update schedule' });
+  try {
+    const updateData = {};
+    if (details) updateData.details = details;
+    if (schedule_date) updateData.schedule_date = new Date(schedule_date);
+    if (visibility) updateData.visibility = visibility;
+
+    const schedule = await Schedule.findByIdAndUpdate(id, updateData, { new: true });
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+
     res.status(200).json({ message: 'Schedule updated successfully' });
-  });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to update schedule' });
+  }
 };
 
 // 7. Get Today Schedules
-const getTodayScheduleCount = (req, res) => {
+const getTodayScheduleCount = async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  const today = new Date().toISOString().split('T')[0];
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const query = `
-    SELECT COUNT(*) AS count
-    FROM schedules
-    WHERE scheduler = ? AND DATE(schedule_date) = ? AND seen = 'pending' OR seen = 'missing'
-  `;
+    const count = await Schedule.countDocuments({
+      scheduler: email,
+      schedule_date: {
+        $gte: today,
+        $lt: tomorrow
+      },
+      seen: { $in: ['pending', 'missed'] }
+    });
 
-  db.query(query, [email, today], (err, results) => {
-    if (err) return res.status(500).json({ error: 'DB Error' });
-    res.json({ count: results[0].count });
-  });
+    res.json({ count });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
 };
 
 // 8. Mark Schedule
-const markSchedule = (req, res) => {
-
+const markSchedule = async (req, res) => {
   const { scheduleId } = req.params;
 
-  const query = `
-    UPDATE schedules 
-    SET seen = 'marked' 
-    WHERE id = ? 
-    AND seen = 'pending'
-    AND schedule_date >= CURDATE()
-  `;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  db.query(query, [scheduleId], (err, result) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
-    
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ 
-        error: 'Schedule not found, already processed, or date passed' 
+    const schedule = await Schedule.findOneAndUpdate(
+      {
+        _id: scheduleId,
+        seen: 'pending',
+        schedule_date: { $gte: today }
+      },
+      { seen: 'marked' },
+      { new: true }
+    );
+
+    if (!schedule) {
+      return res.status(404).json({
+        error: 'Schedule not found, already processed, or date passed'
       });
     }
 
     res.json({ message: 'Schedule marked successfully' });
-  });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 };
 
 // 9. Mark Schedule Missing
-const markMissed = (req, res) => {
+const markMissed = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const query = `
-    UPDATE schedules 
-    SET seen = 'missed' 
-    WHERE seen = 'pending' 
-    AND schedule_date < CURDATE()
-  `;
-  
-  db.query(query, (err) => {
-    if (err) {
-      console.error('Missed schedules update failed:', err);
-    } else {
-      console.log('Missed schedules updated');
-    }
-  });
+    const result = await Schedule.updateMany(
+      {
+        seen: 'pending',
+        schedule_date: { $lt: today }
+      },
+      { seen: 'missed' }
+    );
+
+    console.log(`Missed schedules updated: ${result.modifiedCount}`);
+  } catch (err) {
+    console.error('Missed schedules update failed:', err);
+  }
 };
 
 module.exports = {

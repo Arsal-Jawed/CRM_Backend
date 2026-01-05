@@ -8,9 +8,9 @@ const Sale = require('../Models/SaleModel');
 const Team = require('../Models/TeamModel');
 const Equipment = require('../Models/Equipment');
 const Record = require('../Models/RecordModel');
+const Schedule = require('../Models/ScheduleModel');
+const Notification = require('../Models/NotificationModel');
 const { sendMail, getLeadAssignmentTemplate } = require('../Modules/Nodemailer');
-
-const db = require('../db');
 
 // 1. Create Lead
 const createLead = async (req, res) => {
@@ -46,19 +46,53 @@ const createLead = async (req, res) => {
         }
       }
       await savedLead.save()
-      const dateStr = followupDate.toISOString().split('T')[0]
-      db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, dateStr])
-      db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, [email, scheduleDetails, dateStr])
+      const scheduleDate = new Date(followupDate)
+      scheduleDate.setHours(0, 0, 0, 0)
+      
+      try {
+        await Schedule.create({
+          scheduler: 'daniyal.jawed@finnectpos@gmail.com',
+          details: scheduleDetails,
+          schedule_date: scheduleDate,
+          visibility: 'private'
+        })
+        await Schedule.create({
+          scheduler: email,
+          details: scheduleDetails,
+          schedule_date: scheduleDate,
+          visibility: 'private'
+        })
+      } catch (err) {
+        console.error('Error creating schedules:', err)
+      }
     }
 
     if (user) {
       const notifier = `${user.firstName} ${user.lastName}`
       const detail = `Created a new lead: ${person_name} from ${bName}`
-      db.query(`INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`, [notifier, detail])
+      try {
+        await Notification.create({
+          notifier,
+          detail,
+          date: new Date()
+        })
+      } catch (err) {
+        console.error('Error creating notification:', err)
+      }
     }
 
-    const dateStr = followupDate.toISOString().split('T')[0]
-    db.query(`INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`, ['daniyal.jawed@finnectpos@gmail.com', scheduleDetails, dateStr])
+    const scheduleDate = new Date(followupDate)
+    scheduleDate.setHours(0, 0, 0, 0)
+    try {
+      await Schedule.create({
+        scheduler: 'daniyal.jawed@finnectpos@gmail.com',
+        details: scheduleDetails,
+        schedule_date: scheduleDate,
+        visibility: 'private'
+      })
+    } catch (err) {
+      console.error('Error creating schedule:', err)
+    }
 
     res.status(201).json(savedLead)
   } catch (err) {
@@ -78,10 +112,15 @@ const editLead = async (req, res) => {
     const notifier = `${user.firstName} ${user.lastName}`;
     const detail = `Edited lead: ${person_name} from ${business_name}`;
 
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier,
+        detail,
+        date: new Date()
+      })
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(200).json(updatedLead);
   } catch (err) {
@@ -108,10 +147,15 @@ const rateLead = async (req, res) => {
     const notifier = `${user.firstName} ${user.lastName}`;
     const detail = `Rated lead: ${updatedLead.person_name} from ${updatedLead.business_name} with ${rating} star(s)`;
 
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier,
+        detail,
+        date: new Date()
+      })
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(200).json(updatedLead);
   } catch (err) {
@@ -144,10 +188,13 @@ const assignLead = async (req, res) => {
       updateFields.closure1 = user1.email;
       updateFields.assignDate1 = assignDate1;
 
+      const scheduleDate = new Date(followupDate1)
+      scheduleDate.setHours(0, 0, 0, 0)
+      
       schedules.push({
         scheduler: user1.email,
         details: message,
-        schedule_date: followupDate1.toISOString().split('T')[0]
+        schedule_date: scheduleDate
       });
 
       const html1 = getLeadAssignmentTemplate(lead, assignDate1, followupDate1);
@@ -160,10 +207,16 @@ const assignLead = async (req, res) => {
     const updatedLead = await Lead.findByIdAndUpdate(req.params.id, updateFields, { new: true });
 
     for (const sched of schedules) {
-      await db.query(
-        `INSERT INTO schedules (scheduler, details, schedule_date) VALUES (?, ?, ?)`,
-        [sched.scheduler, sched.details, sched.schedule_date]
-      );
+      try {
+        await Schedule.create({
+          scheduler: sched.scheduler,
+          details: sched.details,
+          schedule_date: sched.schedule_date,
+          visibility: 'private'
+        })
+      } catch (err) {
+        console.error('Error creating schedule:', err)
+      }
     }
 
     res.status(200).json(updatedLead);
@@ -257,11 +310,16 @@ const wonLead = async (req, res) => {
     const notifierUser = await User.findOne({ email: user });
     const notifier = notifierUser ? `${notifierUser.firstName} ${notifierUser.lastName}` : user;
     const detail = `Marked lead as *Won*: ${updatedLead.person_name} from ${updatedLead.business_name}`;
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    
+    try {
+      await Notification.create({
+        notifier,
+        detail,
+        date: new Date()
+      })
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(200).json({ updatedLead, sale: newSale });
   } catch (err) {

@@ -2,7 +2,7 @@ const path = require('path');
 const Doc = require('../Models/DocModel');
 const cloudinary = require('../Modules/Cloudinary');
 const fs = require('fs');
-const db = require('../db');
+const Notification = require('../Models/NotificationModel');
 const User = require('../Models/UserModel');
 
 const addDoc = async (req, res) => {
@@ -37,10 +37,15 @@ const addDoc = async (req, res) => {
     const notifier = user ? `${user.firstName} ${user.lastName}` : email;
     const detail = `Uploaded a new document: *${docName}*`;
 
-    const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-    db.query(query, [notifier, detail], (err) => {
-      if (err) console.error('Failed to insert notification:', err);
-    });
+    try {
+      await Notification.create({
+        notifier,
+        detail,
+        date: new Date()
+      })
+    } catch (err) {
+      console.error('Failed to insert notification:', err);
+    }
 
     res.status(201).json(newDoc);
   } catch (err) {
@@ -91,10 +96,15 @@ const uploadMultipleDocs = async (req, res) => {
       savedDocs.push(newDoc);
 
       const detail = `Uploaded a new document: *${docName}*`;
-      const query = `INSERT INTO notification (notifier, detail, date) VALUES (?, ?, NOW())`;
-      db.query(query, [notifier, detail], (err) => {
-        if (err) console.error('Notification insert error:', err);
-      });
+      try {
+        await Notification.create({
+          notifier,
+          detail,
+          date: new Date()
+        })
+      } catch (err) {
+        console.error('Notification insert error:', err);
+      }
     }
 
     res.status(201).json({ success: true, uploaded: savedDocs });

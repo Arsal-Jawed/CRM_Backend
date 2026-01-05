@@ -6,6 +6,14 @@ const connectDB = require('./config.js');
 const dotenv = require('dotenv');
 dotenv.config();
 
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+});
+
 const userRoutes = require('./Routes/UserRouter.js');
 const leadRoutes = require('./Routes/LeadRouter.js');
 const notificationRoutes = require('./Routes/NotificationRouter.js');
@@ -22,10 +30,6 @@ const dataRoutes = require('./Routes/DataRouter.js');
 const attendanceRoutes = require('./Routes/AttendanceRouter.js');
 const recordRouter = require('./Routes/RecordRouter.js');
 
-const {createNotificationTable} = require('./SQL/Notification.js');
-const {createScheduleTable} = require('./SQL/Schedules.js');
-const {createAttendanceTable} = require('./SQL/Attendance.js');
-
 require('./Modules/Cron.js');
 
 const app = express();
@@ -34,10 +38,6 @@ const PORT = process.env.PORT;
 app.use(bodyParser.json());
 app.use(cors());
 const server = http.createServer(app);
-
-createNotificationTable();
-createScheduleTable();
-createAttendanceTable();
 
 app.use('/users',userRoutes);
 app.use('/leads',leadRoutes);
